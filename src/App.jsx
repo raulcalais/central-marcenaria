@@ -400,30 +400,35 @@ const NewOrder = ({ user, onSubmit }) => {
   const handleSubmit = async () => {
     if (!title||!description) return;
     setLoading(true);
-    const display_id = "CM-" + Date.now().toString().slice(-5);
+    try {
+      const display_id = "CM-" + Date.now().toString().slice(-5);
+      const { data: order, error } = await supabase.from("orders").insert({
+        display_id, client_id: user.id, client_name: user.name||user.email,
+        title, description, status: "aguardando"
+      }).select().single();
 
-    const { data: order, error } = await supabase.from("orders").insert({
-      display_id, client_id: user.id, client_name: user.name||user.email,
-      title, description, status: "aguardando"
-    }).select().single();
+      if (error) { console.error("Erro ao criar pedido:", error); setLoading(false); return; }
 
-    if (error) { console.error(error); setLoading(false); return; }
+      // Upload arquivos (só se tiver)
+      const allFiles = [...files.map(f=>({file:f,isImage:false})), ...images.map(f=>({file:f,isImage:true}))];
+      for (const {file, isImage} of allFiles) {
+        try {
+          const ext = file.name.split(".").pop();
+          const path = `${order.id}/${Date.now()}-${file.name}`;
+          await supabase.storage.from("order-files").upload(path, file, { upsert: true });
+          const { data: { publicUrl } } = supabase.storage.from("order-files").getPublicUrl(path);
+          await supabase.from("order_files").insert({
+            order_id: order.id, name: file.name,
+            size: (file.size/1024).toFixed(0)+" KB",
+            type: ext, url: publicUrl, is_image: isImage
+          });
+        } catch(uploadErr) { console.error("Erro upload:", uploadErr); }
+      }
 
-    // Upload files
-    for (const file of [...files, ...images]) {
-      const ext = file.name.split(".").pop();
-      const path = `${order.id}/${Date.now()}-${file.name}`;
-      const { data: up } = await supabase.storage.from("order-files").upload(path, file);
-      const { data: { publicUrl } } = supabase.storage.from("order-files").getPublicUrl(path);
-      const isImage = file.type?.startsWith("image");
-      await supabase.from("order_files").insert({
-        order_id: order.id, name: file.name,
-        size: (file.size/1024).toFixed(0)+" KB", type: ext,
-        url: publicUrl, is_image: isImage
-      });
+      setSubmitted(order);
+    } catch(err) {
+      console.error("Erro geral:", err);
     }
-
-    setSubmitted(order);
     setLoading(false);
   };
 
@@ -798,18 +803,35 @@ export default function App() {
 
   // Auth state
   useEffect(()=>{
-    supabase.auth.getSession().then(async({data:{session}})=>{
-      if(session){
-        const {data:profile}=await supabase.from("profiles").select("*").eq("id",session.user.id).single();
-        setUser({...session.user,...profile});
+    const loadUser = async (session) => {
+      if (!session) return null;
+      try {
+        const {data:profile} = await supabase.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+        if (!profile) {
+          // Criar perfil se não existir
+          await supabase.from("profiles").insert({
+            id: session.user.id,
+            name: session.user.email?.split("@")[0] || "Usuário",
+            phone: "",
+            role: "client"
+          });
+          return {...session.user, name: session.user.email?.split("@")[0], role:"client"};
+        }
+        return {...session.user, ...profile};
+      } catch(e) {
+        return {...session.user, name: session.user.email?.split("@")[0], role:"client"};
       }
+    };
+
+    supabase.auth.getSession().then(async({data:{session}})=>{
+      if(session){ const u = await loadUser(session); setUser(u); }
       setAuthLoading(false);
     });
+
     const {data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
       if(event==="SIGNED_IN"&&session){
-        const {data:profile}=await supabase.from("profiles").select("*").eq("id",session.user.id).single();
-        setUser({...session.user,...profile});
-      } else if(event==="SIGNED_OUT"){setUser(null);}
+        const u = await loadUser(session); setUser(u);
+      } else if(event==="SIGNED_OUT"){ setUser(null); }
     });
     return ()=>subscription.unsubscribe();
   },[]);
