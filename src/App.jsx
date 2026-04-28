@@ -157,19 +157,21 @@ const LoginPage = ({ onLogin }) => {
   const handleLogin = async () => {
     setError(""); setLoading(true);
     try {
-      // 25s timeout — Supabase free pode demorar para "acordar"
-      const loginPromise = supabase.auth.signInWithPassword({ email, password });
-      const timeoutPromise = new Promise((_,reject) => setTimeout(() => reject(new Error("timeout")), 25000));
-      const { data, error: err } = await Promise.race([loginPromise, timeoutPromise]);
-      if (err) { setError("E-mail ou senha incorretos."); setLoading(false); return; }
-      if (!data?.user) { setError("Erro ao fazer login. Tente novamente."); setLoading(false); return; }
+      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
+      if (err) { 
+        setError("E-mail ou senha incorretos. Verifique e tente novamente.");
+        setLoading(false); 
+        return; 
+      }
+      if (!data?.user) { 
+        setError("Erro ao fazer login. Tente novamente.");
+        setLoading(false); 
+        return; 
+      }
       let profile = null;
       try {
-        const r = await Promise.race([
-          supabase.from("profiles").select("*").eq("id", data.user.id).maybeSingle(),
-          new Promise(resolve => setTimeout(() => resolve({data:null}), 8000))
-        ]);
-        profile = r.data;
+        const {data: p} = await supabase.from("profiles").select("*").eq("id", data.user.id).maybeSingle();
+        profile = p;
       } catch(e) {}
       onLogin({
         ...data.user,
@@ -178,7 +180,7 @@ const LoginPage = ({ onLogin }) => {
         role: profile?.role || "client"
       });
     } catch(e) {
-      setError("Servidor iniciando, aguarde 10 segundos e tente novamente.");
+      setError("Erro de conexão. Verifique sua internet e tente novamente.");
     }
     setLoading(false);
   };
