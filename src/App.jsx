@@ -157,17 +157,17 @@ const LoginPage = ({ onLogin }) => {
   const handleLogin = async () => {
     setError(""); setLoading(true);
     try {
+      // 25s timeout — Supabase free pode demorar para "acordar"
       const loginPromise = supabase.auth.signInWithPassword({ email, password });
-      const timeoutPromise = new Promise((_,reject) => setTimeout(() => reject(new Error("timeout")), 10000));
+      const timeoutPromise = new Promise((_,reject) => setTimeout(() => reject(new Error("timeout")), 25000));
       const { data, error: err } = await Promise.race([loginPromise, timeoutPromise]);
       if (err) { setError("E-mail ou senha incorretos."); setLoading(false); return; }
       if (!data?.user) { setError("Erro ao fazer login. Tente novamente."); setLoading(false); return; }
-      // Buscar perfil com timeout
       let profile = null;
       try {
         const r = await Promise.race([
           supabase.from("profiles").select("*").eq("id", data.user.id).maybeSingle(),
-          new Promise(resolve => setTimeout(() => resolve({data:null}), 5000))
+          new Promise(resolve => setTimeout(() => resolve({data:null}), 8000))
         ]);
         profile = r.data;
       } catch(e) {}
@@ -178,7 +178,7 @@ const LoginPage = ({ onLogin }) => {
         role: profile?.role || "client"
       });
     } catch(e) {
-      setError("Tempo esgotado. Verifique sua conexão e tente novamente.");
+      setError("Servidor iniciando, aguarde 10 segundos e tente novamente.");
     }
     setLoading(false);
   };
