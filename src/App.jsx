@@ -582,45 +582,58 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
   const [currentOrder, setCurrentOrder] = useState(order);
   const chatRef = useRef();
   const isAdmin = user.role==="admin";
+  const pollRef = useRef();
 
-  const loadMessages = useCallback(async () => {
-    const {data} = await supabase.from("messages").select("*").eq("order_id",order.id).order("created_at");
-    setMessages(data||[]);
-  },[order.id]);
+  const loadMessages = async () => {
+    try {
+      const {data} = await supabase.from("messages").select("*").eq("order_id",order.id).order("created_at");
+      if(data) setMessages(data);
+    } catch(e){}
+  };
 
   useEffect(() => {
-    loadMessages();
+    // Carregar arquivos
     supabase.from("order_files").select("*").eq("order_id",order.id).then(({data})=>setOrderFiles(data||[]));
-
-    // Realtime — só mensagens, mais simples e estável
-    const channel = supabase.channel(`chat-${order.id}-${Date.now()}`)
-      .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:`order_id=eq.${order.id}`},
-        ()=>loadMessages())
-      .subscribe();
-    return ()=>{ supabase.removeChannel(channel); };
-  }, [order.id, loadMessages]);
+    // Carregar mensagens
+    loadMessages();
+    // Polling a cada 4 segundos (mais estável que realtime)
+    pollRef.current = setInterval(loadMessages, 4000);
+    return ()=>{ clearInterval(pollRef.current); };
+  }, [order.id]);
 
   useEffect(()=>{ 
-    if(chatRef.current) chatRef.current.scrollTop=chatRef.current.scrollHeight; 
+    if(chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight; 
   },[messages]);
 
   const handleSend = async () => {
-    if (!newMsg.trim()||sending) return;
+    if (!newMsg.trim() || sending) return;
     const txt = newMsg;
     setNewMsg("");
     setSending(true);
     try {
-      const {error} = await supabase.from("messages").insert({
-        order_id: order.id, sender_id: user.id,
-        sender_name: user.name||user.email,
-        sender_role: user.role, text: txt
+      await supabase.from("messages").insert({
+        order_id: order.id,
+        sender_id: user.id,
+        sender_name: user.name || user.email,
+        sender_role: user.role,
+        text: txt
       });
-      if(error) { console.error("Erro chat:",error); setNewMsg(txt); }
-    } catch(e) { console.error(e); setNewMsg(txt); }
+      await loadMessages();
+    } catch(e) { 
+      setNewMsg(txt); 
+    }
     setSending(false);
   };
 
-  const nextStatus = NEXT_STATUS[currentOrder.status];
+  const handleAdvance = async () => {
+    const next = NEXT_STATUS[currentOrder.status];
+    if(!next) return;
+    try {
+      await supabase.from("orders").update({status: next}).eq("id", currentOrder.id);
+      setCurrentOrder(prev=>({...prev, status: next}));
+      onUpdateStatus(currentOrder.id, next, ()=>{});
+    } catch(e){ console.error(e); }
+  };
 
   return (
     <div>
@@ -633,9 +646,9 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
           </div>
           <div style={{ fontSize:13,color:"var(--gray-light)",marginTop:2 }}>{currentOrder.display_id} · {currentOrder.client_name} · {new Date(currentOrder.created_at).toLocaleDateString("pt-BR")}</div>
         </div>
-        {isAdmin&&nextStatus&&(
-          <button className="btn-primary" onClick={()=>onUpdateStatus(currentOrder.id,nextStatus,setCurrentOrder)}>
-            ▶ Avançar: {STATUS_CONFIG[nextStatus]?.label}
+        {isAdmin&&NEXT_STATUS[currentOrder.status]&&(
+          <button className="btn-primary" onClick={handleAdvance}>
+            ▶ Avançar: {STATUS_CONFIG[NEXT_STATUS[currentOrder.status]]?.label}
           </button>
         )}
       </div>
