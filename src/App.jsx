@@ -583,33 +583,40 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
   const chatRef = useRef();
   const isAdmin = user.role==="admin";
 
+  const loadMessages = useCallback(async () => {
+    const {data} = await supabase.from("messages").select("*").eq("order_id",order.id).order("created_at");
+    setMessages(data||[]);
+  },[order.id]);
+
   useEffect(() => {
-    // Load messages
-    supabase.from("messages").select("*").eq("order_id",order.id).order("created_at").then(({data})=>setMessages(data||[]));
-    // Load files
+    loadMessages();
     supabase.from("order_files").select("*").eq("order_id",order.id).then(({data})=>setOrderFiles(data||[]));
 
-    // Realtime messages
-    const channel = supabase.channel(`order-${order.id}`)
+    // Realtime — só mensagens, mais simples e estável
+    const channel = supabase.channel(`chat-${order.id}-${Date.now()}`)
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:`order_id=eq.${order.id}`},
-        payload=>setMessages(prev=>[...prev,payload.new]))
-      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"orders",filter:`id=eq.${order.id}`},
-        payload=>setCurrentOrder(prev=>({...prev,...payload.new})))
+        ()=>loadMessages())
       .subscribe();
-    return ()=>supabase.removeChannel(channel);
-  }, [order.id]);
+    return ()=>{ supabase.removeChannel(channel); };
+  }, [order.id, loadMessages]);
 
-  useEffect(()=>{ if(chatRef.current) chatRef.current.scrollTop=chatRef.current.scrollHeight; },[messages]);
+  useEffect(()=>{ 
+    if(chatRef.current) chatRef.current.scrollTop=chatRef.current.scrollHeight; 
+  },[messages]);
 
   const handleSend = async () => {
     if (!newMsg.trim()||sending) return;
-    setSending(true);
-    await supabase.from("messages").insert({
-      order_id: order.id, sender_id: user.id,
-      sender_name: user.name||user.email,
-      sender_role: user.role, text: newMsg
-    });
+    const txt = newMsg;
     setNewMsg("");
+    setSending(true);
+    try {
+      const {error} = await supabase.from("messages").insert({
+        order_id: order.id, sender_id: user.id,
+        sender_name: user.name||user.email,
+        sender_role: user.role, text: txt
+      });
+      if(error) { console.error("Erro chat:",error); setNewMsg(txt); }
+    } catch(e) { console.error(e); setNewMsg(txt); }
     setSending(false);
   };
 
