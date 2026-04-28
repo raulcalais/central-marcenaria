@@ -930,37 +930,70 @@ export default function App() {
 
   // Auth state
   useEffect(()=>{
-    const loadUser = async (session) => {
-      if (!session) return null;
+    let authTimeout;
+
+    const buildUser = async (session) => {
+      if (!session?.user) return null;
       try {
-        const {data:profile} = await supabase.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
-        if (!profile) {
-          // Criar perfil se não existir
-          await supabase.from("profiles").insert({
-            id: session.user.id,
-            name: session.user.email?.split("@")[0] || "Usuário",
-            phone: "",
-            role: "client"
-          });
-          return {...session.user, name: session.user.email?.split("@")[0], role:"client"};
-        }
-        return {...session.user, ...profile};
+        // Timeout de 5 segundos para buscar perfil
+        const profilePromise = supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
+        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({data: null}), 5000));
+        const {data: profile} = await Promise.race([profilePromise, timeoutPromise]);
+
+        if (profile) return {...session.user, ...profile};
+
+        // Perfil não existe — cria automaticamente
+        const newProfile = {
+          id: session.user.id,
+          name: session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Usuário",
+          phone: session.user.user_metadata?.phone || "",
+          role: "client"
+        };
+        await supabase.from("profiles").upsert(newProfile, {onConflict:"id"});
+        return {...session.user, ...newProfile};
       } catch(e) {
-        return {...session.user, name: session.user.email?.split("@")[0], role:"client"};
+        // Se tudo falhar, usa dados básicos e não trava
+        return {
+          ...session.user,
+          name: session.user.email?.split("@")[0] || "Usuário",
+          role: "client"
+        };
       }
     };
 
+    // Timeout geral de 8 segundos — se não carregar, vai para login
+    authTimeout = setTimeout(() => {
+      setAuthLoading(false);
+    }, 8000);
+
     supabase.auth.getSession().then(async({data:{session}})=>{
-      if(session){ const u = await loadUser(session); setUser(u); }
+      clearTimeout(authTimeout);
+      if (session) {
+        const u = await buildUser(session);
+        if (u) setUser(u);
+      }
+      setAuthLoading(false);
+    }).catch(() => {
+      clearTimeout(authTimeout);
       setAuthLoading(false);
     });
 
-    const {data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
-      if(event==="SIGNED_IN"&&session){
-        const u = await loadUser(session); setUser(u);
-      } else if(event==="SIGNED_OUT"){ setUser(null); }
+    const {data:{subscription}} = supabase.auth.onAuthStateChange(async(event, session)=>{
+      if (event === "SIGNED_IN" && session) {
+        const u = await buildUser(session);
+        if (u) setUser(u);
+      } else if (event === "SIGNED_OUT") {
+        setUser(null);
+      } else if (event === "TOKEN_REFRESHED" && session) {
+        // Token renovado — atualiza silenciosamente
+        setUser(prev => prev ? {...prev, ...session.user} : prev);
+      }
     });
-    return ()=>subscription.unsubscribe();
+
+    return () => {
+      clearTimeout(authTimeout);
+      subscription.unsubscribe();
+    };
   },[]);
 
   // Load orders
