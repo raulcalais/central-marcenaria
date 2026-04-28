@@ -449,22 +449,37 @@ const NewOrder = ({ user, onSubmit }) => {
 
       if (error) { console.error("Erro ao criar pedido:", error); setLoading(false); return; }
 
+      // Upload com timeout de 15s por arquivo
+      const uploadWithTimeout = (file, path) => {
+        return Promise.race([
+          supabase.storage.from("order-files").upload(path, file, { upsert: true }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000))
+        ]);
+      };
+
       const allFiles = [...files.map(f=>({file:f,isImage:false})), ...images.map(f=>({file:f,isImage:true}))];
       for (const {file, isImage} of allFiles) {
         try {
           const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
           const path = `${order.id}/${Date.now()}-${safeName}`;
-          await supabase.storage.from("order-files").upload(path, file, { upsert: true });
+          const result = await uploadWithTimeout(file, path);
+          if (result.error) { console.error("Erro upload:", result.error); continue; }
           const { data: { publicUrl } } = supabase.storage.from("order-files").getPublicUrl(path);
           await supabase.from("order_files").insert({
             order_id: order.id, name: file.name,
             size: (file.size/1024).toFixed(0)+" KB",
             type: file.name.split(".").pop(), url: publicUrl, is_image: isImage
           });
-        } catch(uploadErr) { console.error("Erro upload:", uploadErr); }
+        } catch(uploadErr) { 
+          console.error("Upload falhou:", uploadErr.message);
+          // Continua mesmo se falhar o upload de um arquivo
+        }
       }
       setSubmitted(order);
-    } catch(err) { console.error("Erro geral:", err); }
+    } catch(err) { 
+      console.error("Erro geral:", err);
+      setLoading(false);
+    }
     setLoading(false);
   };
 
