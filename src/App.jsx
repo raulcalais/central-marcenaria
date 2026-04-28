@@ -413,14 +413,15 @@ const NewOrder = ({ user, onSubmit }) => {
       const allFiles = [...files.map(f=>({file:f,isImage:false})), ...images.map(f=>({file:f,isImage:true}))];
       for (const {file, isImage} of allFiles) {
         try {
-          const ext = file.name.split(".").pop();
-          const path = `${order.id}/${Date.now()}-${file.name}`;
+          // Sanitizar nome: remover espaços e caracteres especiais
+          const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const path = `${order.id}/${Date.now()}-${safeName}`;
           await supabase.storage.from("order-files").upload(path, file, { upsert: true });
           const { data: { publicUrl } } = supabase.storage.from("order-files").getPublicUrl(path);
           await supabase.from("order_files").insert({
             order_id: order.id, name: file.name,
             size: (file.size/1024).toFixed(0)+" KB",
-            type: ext, url: publicUrl, is_image: isImage
+            type: file.name.split(".").pop(), url: publicUrl, is_image: isImage
           });
         } catch(uploadErr) { console.error("Erro upload:", uploadErr); }
       }
@@ -580,6 +581,7 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
   const [newMsg, setNewMsg] = useState("");
   const [sending, setSending] = useState(false);
   const [currentOrder, setCurrentOrder] = useState(order);
+  const [preview, setPreview] = useState(null); // popup visualização
   const chatRef = useRef();
   const isAdmin = user.role==="admin";
   const pollRef = useRef();
@@ -637,6 +639,25 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
 
   return (
     <div>
+      {/* POPUP VISUALIZAÇÃO */}
+      {preview && (
+        <div onClick={()=>setPreview(null)} style={{ position:"fixed",top:0,left:0,width:"100vw",height:"100vh",background:"rgba(0,0,0,0.92)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ position:"relative",maxWidth:"90vw",maxHeight:"90vh" }}>
+            <button onClick={()=>setPreview(null)} style={{ position:"absolute",top:-40,right:0,background:"none",border:"none",color:"white",fontSize:32,cursor:"pointer" }}>×</button>
+            {preview.is_image ? (
+              <img src={preview.url} alt={preview.name} style={{ maxWidth:"85vw",maxHeight:"85vh",borderRadius:8,objectFit:"contain" }}/>
+            ) : (
+              <iframe src={preview.url} title={preview.name} style={{ width:"80vw",height:"80vh",border:"none",borderRadius:8,background:"white" }}/>
+            )}
+            <div style={{ textAlign:"center",marginTop:12,color:"var(--gray-light)",fontSize:13 }}>{preview.name}</div>
+            <div style={{ textAlign:"center",marginTop:8 }}>
+              <a href={preview.url} download target="_blank" rel="noreferrer" className="btn-primary" style={{ fontSize:13,padding:"8px 18px",textDecoration:"none" }}>↓ Baixar</a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER */}
       <div style={{ display:"flex",alignItems:"center",gap:16,marginBottom:24 }}>
         <button className="btn-ghost" onClick={onBack} style={{ padding:"8px 14px" }}><Icon name="arrow" size={14}/>Voltar</button>
         <div style={{ flex:1 }}>
@@ -670,14 +691,19 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
               <div className="barlow" style={{ fontSize:16,fontWeight:700,marginBottom:12 }}>📎 Anexos</div>
               <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
                 {orderFiles.map(f=>(
-                  <a key={f.id} href={f.url} target="_blank" rel="noreferrer" style={{ display:"flex",alignItems:"center",gap:10,background:"var(--gray-mid)",borderRadius:8,padding:"10px 14px",textDecoration:"none",color:"var(--white)" }}>
-                    <span>{f.is_image?"🖼️":"📄"}</span>
+                  <div key={f.id} onClick={()=>setPreview(f)}
+                    style={{ display:"flex",alignItems:"center",gap:10,background:"var(--gray-mid)",borderRadius:8,padding:"10px 14px",cursor:"pointer",transition:"background .2s" }}
+                    onMouseEnter={e=>e.currentTarget.style.background="var(--gray)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="var(--gray-mid)"}>
+                    <span style={{ fontSize:20 }}>{f.is_image?"🖼️":"📄"}</span>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:13,fontWeight:500 }}>{f.name}</div>
                       <div style={{ fontSize:11,color:"var(--gray-light)" }}>{f.size}</div>
                     </div>
-                    <span style={{ fontSize:12,color:"var(--yellow)" }}>↓ baixar</span>
-                  </a>
+                    <span style={{ fontSize:12,color:"var(--yellow)",fontWeight:600 }}>
+                      {f.is_image ? "👁️ Ver" : "📖 Abrir"}
+                    </span>
+                  </div>
                 ))}
               </div>
             </div>
