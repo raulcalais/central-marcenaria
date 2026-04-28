@@ -259,52 +259,67 @@ const LoginPage = ({ onLogin }) => {
 
 // ─── LAYOUT ───────────────────────────────────────────────────────────────────
 const Layout = ({ user, activeTab, setActiveTab, onLogout, children }) => {
+  const [collapsed, setCollapsed] = useState(false);
   const isAdmin = user.role === "admin";
+  const sideW = collapsed ? 64 : 220;
   const nav = isAdmin
     ? [{ key:"dashboard",icon:"home",label:"Dashboard" },{ key:"orders",icon:"orders",label:"Todos os Pedidos" },{ key:"users",icon:"users",label:"Clientes" }]
     : [{ key:"dashboard",icon:"home",label:"Dashboard" },{ key:"new-order",icon:"plus",label:"Novo Pedido" },{ key:"orders",icon:"orders",label:"Meus Pedidos" }];
 
   return (
     <div style={{ display:"flex", minHeight:"100vh" }}>
-      <div style={{ width:220,background:"var(--gray-dark)",borderRight:"1px solid var(--gray-mid)",display:"flex",flexDirection:"column",flexShrink:0,position:"fixed",height:"100vh",left:0,top:0 }}>
+      <div style={{ width:sideW,background:"var(--gray-dark)",borderRight:"1px solid var(--gray-mid)",display:"flex",flexDirection:"column",flexShrink:0,position:"fixed",height:"100vh",left:0,top:0,transition:"width .25s ease",overflow:"hidden",zIndex:100 }}>
         <div className="cnc-strip" />
-        <div style={{ padding:"18px 16px",borderBottom:"1px solid var(--gray-mid)" }}>
-          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-            <div style={{ background:"var(--green)",borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,border:"1.5px solid var(--yellow)",flexShrink:0 }}>⚙️</div>
-            <div>
-              <div className="barlow" style={{ fontSize:15,fontWeight:900,color:"var(--white)",lineHeight:1 }}>CENTRAL</div>
-              <div className="barlow" style={{ fontSize:11,fontWeight:900,color:"var(--yellow)",letterSpacing:1,lineHeight:1 }}>MARCENARIA <span style={{ color:"var(--gray-light)",fontSize:9 }}>4.0</span></div>
+        <div style={{ padding:"12px",borderBottom:"1px solid var(--gray-mid)",display:"flex",alignItems:"center",gap:8,justifyContent:collapsed?"center":"space-between" }}>
+          {!collapsed && (
+            <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+              <div style={{ background:"var(--green)",borderRadius:7,width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,border:"1.5px solid var(--yellow)",flexShrink:0 }}>⚙️</div>
+              <div>
+                <div className="barlow" style={{ fontSize:13,fontWeight:900,color:"var(--white)",lineHeight:1 }}>CENTRAL</div>
+                <div className="barlow" style={{ fontSize:9,fontWeight:900,color:"var(--yellow)",letterSpacing:1,lineHeight:1 }}>MARCENARIA 4.0</div>
+              </div>
             </div>
-          </div>
+          )}
+          <button onClick={()=>setCollapsed(c=>!c)} style={{ background:"var(--gray-mid)",border:"1px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"4px 8px",fontSize:14,flexShrink:0,lineHeight:1,transition:"all .2s" }}
+            title={collapsed?"Expandir menu":"Recolher menu"}>
+            {collapsed ? "▶" : "◀"}
+          </button>
         </div>
 
-        <div style={{ padding:"14px 16px",borderBottom:"1px solid var(--gray-mid)" }}>
-          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-            <div style={{ width:36,height:36,borderRadius:"50%",background:isAdmin?"var(--green)":"var(--yellow)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,color:isAdmin?"white":"var(--black)" }}>
-              {(user.name||user.email||"?").charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <div style={{ fontSize:13,fontWeight:600 }}>{(user.name||user.email||"").split(" ")[0]}</div>
-              <div style={{ fontSize:11,color:isAdmin?"var(--green-light)":"var(--gray-light)" }}>{isAdmin?"🔧 Admin":"👤 Cliente"}</div>
-            </div>
+        <div style={{ padding:"10px 12px",borderBottom:"1px solid var(--gray-mid)",display:"flex",alignItems:"center",gap:8,justifyContent:collapsed?"center":"flex-start" }}>
+          <div style={{ width:30,height:30,borderRadius:"50%",background:isAdmin?"var(--green)":"var(--yellow)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:isAdmin?"white":"var(--black)",flexShrink:0 }}>
+            {(user.name||user.email||"?").charAt(0).toUpperCase()}
           </div>
+          {!collapsed && (
+            <div>
+              <div style={{ fontSize:12,fontWeight:600 }}>{(user.name||user.email||"").split(" ")[0]}</div>
+              <div style={{ fontSize:10,color:isAdmin?"var(--green-light)":"var(--gray-light)" }}>{isAdmin?"🔧 Admin":"👤 Cliente"}</div>
+            </div>
+          )}
         </div>
 
         <nav style={{ padding:"10px 8px",flex:1,display:"flex",flexDirection:"column",gap:2 }}>
           {nav.map(item=>(
-            <div key={item.key} className={`sidebar-item ${activeTab===item.key?"active":""}`} onClick={()=>setActiveTab(item.key)}>
-              <Icon name={item.icon} size={16} /><span>{item.label}</span>
+            <div key={item.key} className={`sidebar-item ${activeTab===item.key?"active":""}`}
+              onClick={()=>setActiveTab(item.key)} title={item.label}
+              style={{ justifyContent:collapsed?"center":"flex-start",padding:collapsed?"10px 0":"10px 14px" }}>
+              <Icon name={item.icon} size={17} />
+              {!collapsed && <span>{item.label}</span>}
             </div>
           ))}
         </nav>
 
         <div style={{ padding:"10px 8px",borderTop:"1px solid var(--gray-mid)" }}>
-          <div className="sidebar-item" onClick={onLogout}><Icon name="logout" size={16} /><span>Sair</span></div>
+          <div className="sidebar-item" onClick={onLogout} title="Sair"
+            style={{ justifyContent:collapsed?"center":"flex-start",padding:collapsed?"10px 0":"10px 14px" }}>
+            <Icon name="logout" size={17} />
+            {!collapsed && <span>Sair</span>}
+          </div>
         </div>
       </div>
 
-      <div style={{ flex:1,marginLeft:220,overflow:"auto" }}>
-        <div className="fade-in" style={{ padding:"28px 32px" }}>{children}</div>
+      <div style={{ flex:1,marginLeft:sideW,overflow:"auto",transition:"margin-left .25s ease" }}>
+        <div className="fade-in" style={{ padding:"24px 28px" }}>{children}</div>
       </div>
     </div>
   );
@@ -314,65 +329,87 @@ const Layout = ({ user, activeTab, setActiveTab, onLogout, children }) => {
 const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
   const prontos = orders.filter(o=>o.status==="pronto").length;
   const emAnd = orders.filter(o=>!["pronto","entregue"].includes(o.status)).length;
+
+  const stepIndex = (status) => STATUS_CONFIG[status]?.step ?? 0;
+
   return (
     <div>
-      <div style={{ marginBottom:24 }}>
-        <div className="barlow" style={{ fontSize:36,fontWeight:800 }}>Olá, {(user.name||"").split(" ")[0]}! 👋</div>
+      <div style={{ marginBottom:20 }}>
+        <div className="barlow" style={{ fontSize:34,fontWeight:800 }}>Olá, {(user.name||"").split(" ")[0]}! 👋</div>
         <p style={{ color:"var(--gray-light)",fontSize:14,marginTop:4 }}>Bem-vindo ao portal da Central Marcenaria 4.0.</p>
       </div>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:24 }}>
+
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:20 }}>
         {[["Total de Pedidos",orders.length,"📋","var(--yellow)"],["Em Andamento",emAnd,"⚙️","var(--orange)"],["Prontos p/ Retirada",prontos,"✅","#4caf72"]].map(([label,value,icon,color])=>(
-          <div key={label} className="card" style={{ borderLeft:`3px solid ${color}` }}>
+          <div key={label} className="card" style={{ borderLeft:`3px solid ${color}`,padding:"14px 18px" }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
               <div>
-                <div style={{ fontSize:13,color:"var(--gray-light)",marginBottom:6 }}>{label}</div>
-                <div className="barlow" style={{ fontSize:44,fontWeight:900,color,lineHeight:1 }}>{value}</div>
+                <div style={{ fontSize:12,color:"var(--gray-light)",marginBottom:4 }}>{label}</div>
+                <div className="barlow" style={{ fontSize:40,fontWeight:900,color,lineHeight:1 }}>{value}</div>
               </div>
-              <span style={{ fontSize:32 }}>{icon}</span>
+              <span style={{ fontSize:28 }}>{icon}</span>
             </div>
           </div>
         ))}
       </div>
 
       {prontos > 0 && (
-        <div style={{ background:"rgba(26,107,46,.12)",border:"1px solid rgba(26,107,46,.4)",borderRadius:12,padding:"16px 20px",marginBottom:20,display:"flex",alignItems:"center",gap:16 }}>
-          <span style={{ fontSize:28 }}>🎉</span>
+        <div style={{ background:"rgba(26,107,46,.12)",border:"1px solid rgba(26,107,46,.4)",borderRadius:12,padding:"14px 18px",marginBottom:16,display:"flex",alignItems:"center",gap:16 }}>
+          <span style={{ fontSize:24 }}>🎉</span>
           <div style={{ flex:1 }}>
-            <div style={{ fontWeight:600,color:"#4caf72",fontSize:15 }}>Você tem {prontos} pedido(s) prontos para retirada!</div>
-            <div style={{ fontSize:13,color:"var(--gray-light)",marginTop:2 }}>Av. Acesita, nº 1.080, Olaria - Timóteo/MG</div>
+            <div style={{ fontWeight:600,color:"#4caf72",fontSize:14 }}>Você tem {prontos} pedido(s) prontos para retirada!</div>
+            <div style={{ fontSize:12,color:"var(--gray-light)",marginTop:2 }}>Av. Acesita, nº 1.080, Olaria - Timóteo/MG</div>
           </div>
           <button className="btn-green" onClick={()=>setActiveTab("orders")}>Ver Pedidos</button>
         </div>
       )}
 
-      <div className="card">
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-          <div className="barlow" style={{ fontSize:20,fontWeight:700 }}>Pedidos Recentes</div>
-          <button className="btn-ghost" onClick={()=>setActiveTab("orders")} style={{ fontSize:13 }}>Ver todos</button>
+      {/* Pedidos com barra de progresso visual */}
+      <div className="card" style={{ marginBottom:16 }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+          <div className="barlow" style={{ fontSize:20,fontWeight:700 }}>Pedidos em Andamento</div>
+          <button className="btn-ghost" onClick={()=>setActiveTab("orders")} style={{ fontSize:12 }}>Ver todos</button>
         </div>
         {orders.length===0 ? (
-          <div style={{ textAlign:"center",padding:32,color:"var(--gray-light)" }}>
-            <div style={{ fontSize:40,marginBottom:12 }}>📂</div>
+          <div style={{ textAlign:"center",padding:28,color:"var(--gray-light)" }}>
+            <div style={{ fontSize:36,marginBottom:10 }}>📂</div>
             <div>Nenhum pedido ainda.</div>
-            <button className="btn-primary" style={{ marginTop:16 }} onClick={()=>setActiveTab("new-order")}><Icon name="plus" size={16}/>Criar Primeiro Pedido</button>
+            <button className="btn-primary" style={{ marginTop:14 }} onClick={()=>setActiveTab("new-order")}><Icon name="plus" size={16}/>Criar Primeiro Pedido</button>
           </div>
-        ) : orders.slice(0,3).map(o=>(
-          <div key={o.id} className="table-row" style={{ gridTemplateColumns:"1fr 160px 80px",cursor:"pointer",borderRadius:8 }} onClick={()=>{setSelectedOrder(o);setActiveTab("order-detail");}}>
-            <div>
-              <div style={{ fontWeight:500,fontSize:14 }}>{o.title}</div>
-              <div style={{ fontSize:12,color:"var(--gray-light)",marginTop:2 }}>{o.display_id} · {new Date(o.created_at).toLocaleDateString("pt-BR")}</div>
+        ) : orders.slice(0,5).map(o=>{
+          const step = stepIndex(o.status);
+          const pct = (step/4)*100;
+          const cfg = STATUS_CONFIG[o.status]||STATUS_CONFIG.aguardando;
+          return (
+            <div key={o.id} style={{ padding:"14px 0",borderBottom:"1px solid var(--gray-mid)",cursor:"pointer" }}
+              onClick={()=>{setSelectedOrder(o);setActiveTab("order-detail");}}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                <div>
+                  <span style={{ fontWeight:600,fontSize:14 }}>{o.title}</span>
+                  <span style={{ fontSize:12,color:"var(--gray-light)",marginLeft:10 }}>{o.display_id}</span>
+                </div>
+                <span className={`badge badge-${cfg.color}`}>{cfg.icon} {cfg.label}</span>
+              </div>
+              {/* Barra de progresso */}
+              <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:6 }}>
+                {STEPS.map((s,i)=>(
+                  <div key={s.key} style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3 }}>
+                    <div style={{ width:"100%",height:4,borderRadius:2,background:i<=step?"var(--yellow)":"var(--gray-mid)",transition:"background .3s" }}/>
+                    <span style={{ fontSize:9,color:i===step?"var(--yellow)":i<step?"#4caf72":"var(--gray-light)",fontWeight:i===step?700:400 }}>{s.icon}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize:11,color:"var(--gray-light)" }}>Etapa {step+1} de 5 · {new Date(o.created_at).toLocaleDateString("pt-BR")}</div>
             </div>
-            <StatusBadge status={o.status}/>
-            <div style={{ color:"var(--yellow)",fontSize:18 }}>→</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      <div className="card" style={{ marginTop:16,background:"linear-gradient(135deg,rgba(245,184,0,.08),rgba(26,77,46,.12))",border:"1px solid rgba(245,184,0,.2)" }}>
+      <div className="card" style={{ background:"linear-gradient(135deg,rgba(245,184,0,.08),rgba(26,77,46,.12))",border:"1px solid rgba(245,184,0,.2)" }}>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
           <div>
-            <div className="barlow" style={{ fontSize:22,fontWeight:800,color:"var(--yellow)" }}>NOVO PEDIDO DE CORTE?</div>
-            <p style={{ color:"var(--gray-light)",fontSize:13,marginTop:4 }}>Envie seu arquivo DXF ou CNC e acompanhe cada etapa.</p>
+            <div className="barlow" style={{ fontSize:20,fontWeight:800,color:"var(--yellow)" }}>NOVO PEDIDO DE CORTE?</div>
+            <p style={{ color:"var(--gray-light)",fontSize:13,marginTop:4 }}>Envie seu projeto e acompanhe cada etapa em tempo real.</p>
           </div>
           <button className="btn-primary" onClick={()=>setActiveTab("new-order")}><Icon name="plus" size={16}/>Criar Pedido</button>
         </div>
@@ -384,6 +421,8 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
 // ─── NEW ORDER ────────────────────────────────────────────────────────────────
 const NewOrder = ({ user, onSubmit }) => {
   const [title, setTitle] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [ot, setOt] = useState("");
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState([]);
   const [images, setImages] = useState([]);
@@ -402,18 +441,17 @@ const NewOrder = ({ user, onSubmit }) => {
     setLoading(true);
     try {
       const display_id = "CM-" + Date.now().toString().slice(-5);
+      const fullTitle = `${title}${clientName?" — "+clientName:""}${ot?" [OT:"+ot+"]":""}`;
       const { data: order, error } = await supabase.from("orders").insert({
         display_id, client_id: user.id, client_name: user.name||user.email,
-        title, description, status: "aguardando"
+        title: fullTitle, description, status: "aguardando"
       }).select().single();
 
       if (error) { console.error("Erro ao criar pedido:", error); setLoading(false); return; }
 
-      // Upload arquivos (só se tiver)
       const allFiles = [...files.map(f=>({file:f,isImage:false})), ...images.map(f=>({file:f,isImage:true}))];
       for (const {file, isImage} of allFiles) {
         try {
-          // Sanitizar nome: remover espaços e caracteres especiais
           const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
           const path = `${order.id}/${Date.now()}-${safeName}`;
           await supabase.storage.from("order-files").upload(path, file, { upsert: true });
@@ -425,58 +463,79 @@ const NewOrder = ({ user, onSubmit }) => {
           });
         } catch(uploadErr) { console.error("Erro upload:", uploadErr); }
       }
-
       setSubmitted(order);
-    } catch(err) {
-      console.error("Erro geral:", err);
-    }
+    } catch(err) { console.error("Erro geral:", err); }
     setLoading(false);
   };
 
+  const resetForm = () => { setSubmitted(null);setTitle("");setClientName("");setOt("");setDescription("");setFiles([]);setImages([]); };
+
   if (submitted) return (
-    <div style={{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:400,textAlign:"center",gap:20 }}>
-      <div style={{ fontSize:72 }}>🎉</div>
-      <div className="barlow" style={{ fontSize:36,fontWeight:900,color:"var(--yellow)" }}>PEDIDO ENVIADO!</div>
-      <p style={{ color:"var(--gray-light)",maxWidth:400 }}>Pedido <strong>{submitted.display_id}</strong> recebido. A equipe da Central irá analisar em breve.</p>
-      <button className="btn-primary" onClick={()=>{setSubmitted(null);setTitle("");setDescription("");setFiles([]);setImages([]);}}>
-        <Icon name="plus" size={16}/>Novo Pedido
-      </button>
+    <div style={{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:400,textAlign:"center",gap:16,maxWidth:500,margin:"0 auto" }}>
+      <div style={{ fontSize:64 }}>🎉</div>
+      <div className="barlow" style={{ fontSize:34,fontWeight:900,color:"var(--yellow)" }}>PEDIDO LIBERADO!</div>
+      <div style={{ background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:12,padding:"20px 24px",width:"100%",textAlign:"left" }}>
+        <div style={{ fontSize:13,color:"var(--gray-light)",marginBottom:4 }}>Número do pedido</div>
+        <div style={{ fontSize:20,fontWeight:700,color:"var(--yellow)",marginBottom:16 }}>{submitted.display_id}</div>
+        <div style={{ fontSize:14,color:"var(--white)",lineHeight:1.8 }}>
+          ✅ Seu pedido foi recebido pela equipe da <strong>Central Marcenaria 4.0</strong>.<br/>
+          📊 Acompanhe o progresso em tempo real pelo seu <strong>painel de membro</strong>.<br/>
+          💬 Precisa passar alguma informação? Use o <strong>chat interno</strong> do pedido.<br/>
+          📲 Você será notificado quando o pedido estiver pronto para retirada.
+        </div>
+      </div>
+      <div style={{ display:"flex",gap:12 }}>
+        <button className="btn-primary" onClick={resetForm}><Icon name="plus" size={16}/>Novo Pedido</button>
+        <button className="btn-ghost" onClick={()=>onSubmit()}>Ver Meus Pedidos</button>
+      </div>
     </div>
   );
 
   return (
     <div>
-      <div style={{ marginBottom:24 }}>
-        <div className="barlow" style={{ fontSize:32,fontWeight:800 }}>Novo Pedido</div>
-        <p style={{ color:"var(--gray-light)",fontSize:14,marginTop:4 }}>Descreva seu projeto e anexe os arquivos necessários.</p>
+      <div style={{ marginBottom:20 }}>
+        <div className="barlow" style={{ fontSize:30,fontWeight:800 }}>Novo Pedido</div>
+        <p style={{ color:"var(--gray-light)",fontSize:14,marginTop:4 }}>Preencha as informações e anexe os arquivos do projeto.</p>
       </div>
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 340px",gap:20 }}>
-        <div style={{ display:"flex",flexDirection:"column",gap:20 }}>
+      <div style={{ display:"grid",gridTemplateColumns:"1fr 320px",gap:20 }}>
+        <div style={{ display:"flex",flexDirection:"column",gap:18 }}>
           <div className="card">
-            <div className="barlow" style={{ fontSize:18,fontWeight:700,marginBottom:16 }}>Informações do Pedido</div>
-            <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-              <div>
-                <label style={{ fontSize:12,color:"var(--gray-light)",display:"block",marginBottom:5 }}>TÍTULO DO PEDIDO *</label>
-                <input className="input-field" placeholder="Ex: Corte MDF sala de estar" value={title} onChange={e=>setTitle(e.target.value)}/>
+            <div className="barlow" style={{ fontSize:17,fontWeight:700,marginBottom:14 }}>Informações do Pedido</div>
+            <div style={{ display:"flex",flexDirection:"column",gap:13 }}>
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+                <div>
+                  <label style={{ fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5 }}>AMBIENTE *</label>
+                  <input className="input-field" placeholder="Ex: Sala de Estar, Cozinha..." value={title} onChange={e=>setTitle(e.target.value)}/>
+                </div>
+                <div>
+                  <label style={{ fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5 }}>CLIENTE (SOLICITANTE)</label>
+                  <input className="input-field" placeholder="Nome do cliente final" value={clientName} onChange={e=>setClientName(e.target.value)}/>
+                </div>
               </div>
-              <div>
-                <label style={{ fontSize:12,color:"var(--gray-light)",display:"block",marginBottom:5 }}>DESCRIÇÃO DETALHADA *</label>
-                <textarea className="input-field" placeholder="Material, espessura, quantidade de peças, tipo de borda..." value={description} onChange={e=>setDescription(e.target.value)} style={{ minHeight:120 }}/>
+              <div style={{ display:"grid",gridTemplateColumns:"160px 1fr",gap:12 }}>
+                <div>
+                  <label style={{ fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5 }}>Nº OT</label>
+                  <input className="input-field" placeholder="Ex: 1042" type="number" value={ot} onChange={e=>setOt(e.target.value)}/>
+                </div>
+                <div>
+                  <label style={{ fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5 }}>DESCRIÇÃO DETALHADA *</label>
+                  <input className="input-field" placeholder="Material, espessura, tipo de borda, quantidade de peças..." value={description} onChange={e=>setDescription(e.target.value)}/>
+                </div>
               </div>
             </div>
           </div>
 
           <div className="card">
-            <div className="barlow" style={{ fontSize:18,fontWeight:700,marginBottom:14 }}>📁 Arquivos do Projeto</div>
+            <div className="barlow" style={{ fontSize:17,fontWeight:700,marginBottom:12 }}>📁 Arquivos de Relatórios</div>
             <div className="upload-zone" onClick={()=>fileRef.current.click()}>
               <input ref={fileRef} type="file" multiple style={{ display:"none" }} onChange={e=>handleFileAdd(e,"file")} accept=".dxf,.cnc,.dwg,.pdf,.svg,.nc,.zip"/>
-              <div style={{ fontSize:32,marginBottom:8 }}>📂</div>
-              <div style={{ fontWeight:600,marginBottom:4 }}>Clique para enviar arquivos</div>
-              <div style={{ fontSize:12,color:"var(--gray-light)" }}>DXF, CNC, DWG, PDF, SVG, NC</div>
+              <div style={{ fontSize:28,marginBottom:6 }}>📂</div>
+              <div style={{ fontWeight:600,marginBottom:3 }}>Clique para enviar arquivos</div>
+              <div style={{ fontSize:12,color:"var(--gray-light)" }}>DXF, CNC, DWG, PDF, SVG, NC, ZIP</div>
             </div>
             {files.length>0 && <div style={{ marginTop:10,display:"flex",flexDirection:"column",gap:6 }}>
               {files.map((f,i)=>(
-                <div key={i} style={{ display:"flex",alignItems:"center",gap:10,background:"var(--gray-mid)",borderRadius:8,padding:"10px 14px" }}>
+                <div key={i} style={{ display:"flex",alignItems:"center",gap:10,background:"var(--gray-mid)",borderRadius:8,padding:"9px 12px" }}>
                   <span>📄</span>
                   <div style={{ flex:1 }}><div style={{ fontSize:13,fontWeight:500 }}>{f.name}</div><div style={{ fontSize:11,color:"var(--gray-light)" }}>{(f.size/1024).toFixed(0)} KB</div></div>
                   <button onClick={()=>setFiles(files.filter((_,j)=>j!==i))} style={{ background:"none",border:"none",color:"var(--gray-light)",cursor:"pointer",fontSize:18 }}>×</button>
@@ -486,16 +545,16 @@ const NewOrder = ({ user, onSubmit }) => {
           </div>
 
           <div className="card">
-            <div className="barlow" style={{ fontSize:18,fontWeight:700,marginBottom:14 }}>🖼️ Imagens de Referência</div>
+            <div className="barlow" style={{ fontSize:17,fontWeight:700,marginBottom:12 }}>🖼️ Imagens do Projeto</div>
             <div className="upload-zone" onClick={()=>imgRef.current.click()}>
               <input ref={imgRef} type="file" multiple style={{ display:"none" }} onChange={e=>handleFileAdd(e,"image")} accept="image/*"/>
-              <div style={{ fontSize:32,marginBottom:8 }}>🖼️</div>
-              <div style={{ fontWeight:600,marginBottom:4 }}>Adicionar imagens</div>
+              <div style={{ fontSize:28,marginBottom:6 }}>🖼️</div>
+              <div style={{ fontWeight:600,marginBottom:3 }}>Adicionar imagens</div>
               <div style={{ fontSize:12,color:"var(--gray-light)" }}>JPG, PNG, WEBP</div>
             </div>
             {images.length>0 && <div style={{ marginTop:10,display:"flex",gap:8,flexWrap:"wrap" }}>
               {images.map((img,i)=>(
-                <div key={i} style={{ background:"var(--gray-mid)",borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:8,fontSize:13 }}>
+                <div key={i} style={{ background:"var(--gray-mid)",borderRadius:8,padding:"7px 11px",display:"flex",alignItems:"center",gap:7,fontSize:13 }}>
                   🖼️ {img.name}
                   <button onClick={()=>setImages(images.filter((_,j)=>j!==i))} style={{ background:"none",border:"none",color:"var(--gray-light)",cursor:"pointer" }}>×</button>
                 </div>
@@ -504,26 +563,33 @@ const NewOrder = ({ user, onSubmit }) => {
           </div>
         </div>
 
-        <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
+        <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
           <div className="card" style={{ borderColor:"rgba(245,184,0,.3)" }}>
-            <div className="barlow" style={{ fontSize:18,fontWeight:700,marginBottom:12,color:"var(--yellow)" }}>Resumo</div>
-            <div style={{ display:"flex",flexDirection:"column",gap:10,fontSize:13 }}>
+            <div className="barlow" style={{ fontSize:17,fontWeight:700,marginBottom:12,color:"var(--yellow)" }}>Resumo</div>
+            <div style={{ display:"flex",flexDirection:"column",gap:9,fontSize:13 }}>
+              {title && <div style={{ display:"flex",justifyContent:"space-between" }}><span style={{ color:"var(--gray-light)" }}>Ambiente</span><span style={{ fontWeight:500,textAlign:"right",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{title}</span></div>}
+              {clientName && <div style={{ display:"flex",justifyContent:"space-between" }}><span style={{ color:"var(--gray-light)" }}>Cliente</span><span>{clientName}</span></div>}
+              {ot && <div style={{ display:"flex",justifyContent:"space-between" }}><span style={{ color:"var(--gray-light)" }}>Nº OT</span><span style={{ color:"var(--yellow)",fontWeight:600 }}>{ot}</span></div>}
               <div style={{ display:"flex",justifyContent:"space-between" }}><span style={{ color:"var(--gray-light)" }}>Arquivos</span><span>{files.length}</span></div>
               <div style={{ display:"flex",justifyContent:"space-between" }}><span style={{ color:"var(--gray-light)" }}>Imagens</span><span>{images.length}</span></div>
-              <div style={{ display:"flex",justifyContent:"space-between" }}><span style={{ color:"var(--gray-light)" }}>Status inicial</span><StatusBadge status="aguardando"/></div>
+              <div style={{ display:"flex",justifyContent:"space-between" }}><span style={{ color:"var(--gray-light)" }}>Status</span><StatusBadge status="aguardando"/></div>
             </div>
-            <div style={{ borderTop:"1px solid var(--gray)",margin:"16px 0" }}/>
-            <button className="btn-primary" style={{ width:"100%",justifyContent:"center",padding:14,fontSize:16,opacity:(!title||!description)?0.5:1 }}
+            <div style={{ borderTop:"1px solid var(--gray)",margin:"14px 0" }}/>
+            <button className="btn-primary" style={{ width:"100%",justifyContent:"center",padding:13,fontSize:16,opacity:(!title||!description)?0.5:1 }}
               onClick={handleSubmit} disabled={!title||!description||loading}>
               {loading?<><div className="spinner"/>Enviando...</>:"🚀 LIBERAR PEDIDO"}
             </button>
-            <p style={{ fontSize:11,color:"var(--gray-light)",textAlign:"center",marginTop:8 }}>A equipe da Central será notificada.</p>
+            <p style={{ fontSize:11,color:"var(--gray-light)",textAlign:"center",marginTop:7 }}>A equipe da Central será notificada.</p>
           </div>
           <div className="card" style={{ background:"rgba(26,77,46,.1)" }}>
-            <div style={{ fontSize:13,color:"var(--gray-light)",lineHeight:1.8 }}>
-              <div style={{ fontWeight:600,color:"var(--white)",marginBottom:8 }}>💡 Dicas:</div>
-              <div>• Envie o arquivo DXF ou CNC</div><div>• Informe material e espessura</div>
-              <div>• Tipo de borda desejado</div><div>• Fotos de referência ajudam</div>
+            <div style={{ fontSize:13,color:"var(--gray-light)",lineHeight:1.9 }}>
+              <div style={{ fontWeight:600,color:"var(--white)",marginBottom:8 }}>💡 Dicas para seu pedido:</div>
+              <div>• Informe o <strong style={{color:"var(--white)"}}>ambiente</strong> (sala, cozinha, etc.)</div>
+              <div>• Coloque o <strong style={{color:"var(--white)"}}>nome do cliente</strong> para rastrear</div>
+              <div>• Anexe o arquivo <strong style={{color:"var(--white)"}}>DXF ou CNC</strong> do projeto</div>
+              <div>• Especifique <strong style={{color:"var(--white)"}}>material e espessura</strong></div>
+              <div>• Informe o <strong style={{color:"var(--white)"}}>tipo de borda</strong> desejado</div>
+              <div>• Use o <strong style={{color:"var(--white)"}}>chat interno</strong> para dúvidas</div>
             </div>
           </div>
         </div>
