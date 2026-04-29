@@ -949,6 +949,44 @@ export default function App() {
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const inactivityRef = useRef(null);
+  const heartbeatRef = useRef(null);
+
+  // Auto-logout após 40 minutos de inatividade
+  const resetInactivity = useCallback(() => {
+    clearTimeout(inactivityRef.current);
+    inactivityRef.current = setTimeout(async () => {
+      await supabase.auth.signOut();
+      setUser(null);
+      setOrders([]);
+    }, 40 * 60 * 1000); // 40 minutos
+  }, []);
+
+  // Heartbeat — renova sessão a cada 2 minutos
+  const startHeartbeat = useCallback(() => {
+    clearInterval(heartbeatRef.current);
+    heartbeatRef.current = setInterval(async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!data?.session) return;
+        await supabase.auth.refreshSession();
+      } catch(e) {}
+    }, 2 * 60 * 1000); // 2 minutos
+  }, []);
+
+  // Detectar atividade do usuário
+  useEffect(() => {
+    if (!user) return;
+    const events = ["mousedown","keydown","touchstart","scroll","click"];
+    events.forEach(e => window.addEventListener(e, resetInactivity, { passive: true }));
+    resetInactivity();
+    startHeartbeat();
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetInactivity));
+      clearTimeout(inactivityRef.current);
+      clearInterval(heartbeatRef.current);
+    };
+  }, [user, resetInactivity, startHeartbeat]);
 
   // Auth state
   useEffect(()=>{
