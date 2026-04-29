@@ -112,7 +112,7 @@ const StatusBadge = ({ status, subStatus }) => {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.aguardando;
   return (
     <span style={{ display:"inline-flex",flexDirection:"column",gap:3,alignItems:"flex-start" }}>
-      <StatusBadge status={o.status} subStatus={o.sub_status}/>
+      <span className={`badge badge-${cfg.color}`}>{cfg.icon} {cfg.label}</span>
       {subStatus === "aguardando_chapa" && (
         <span className="badge badge-orange" style={{ fontSize:11,padding:"3px 8px" }}>🧱 Aguard. Chapa</span>
       )}
@@ -1323,7 +1323,9 @@ export default function App() {
     const buildUser = async (session) => {
       if (!session?.user) return null;
       try {
-        const {data: profile} = await supabase.from("profiles").select("*, companies(id,name,access_key)").eq("id", session.user.id).maybeSingle();
+        const {data: profile} = await supabase.from("profiles").select("*, companies(id,name,access_key)").eq("id", session.user.id).maybeSingle().catch(()=>
+          supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle().then(r=>r)
+        );
         if (profile) {
           // Sincroniza email no profile se ainda não tinha (usuários antigos)
           if (!profile.email && session.user.email) {
@@ -1356,7 +1358,9 @@ export default function App() {
         const valid = exp && (exp * 1000) > Date.now();
         if (valid && stored?.user) {
           setAuthLoading(false);
-          supabase.from("profiles").select("*, companies(id,name)").eq("id", stored.user.id).maybeSingle().then(({data: profile}) => {
+          supabase.from("profiles").select("*, companies(id,name)").eq("id", stored.user.id).maybeSingle().catch(()=>
+              supabase.from("profiles").select("*").eq("id", stored.user.id).maybeSingle().then(r=>r)
+            ).then(({data: profile}) => {
             setUser({ ...stored.user, name: profile?.name || stored.user.email?.split("@")[0] || "Usuário", phone: profile?.phone || "", role: profile?.role || "client", email: profile?.email || stored.user.email || "", company_id: profile?.company_id || null, company_name: profile?.companies?.name || null });
           }).catch(()=>{
             setUser({ ...stored.user, name: stored.user.email?.split("@")[0] || "Usuário", role: "client" });
@@ -1429,7 +1433,8 @@ export default function App() {
 
   const handleUpdateStatus = async(orderId, newStatus, setCurrentOrder)=>{
     const clearSub = newStatus !== "analise";
-    await supabase.from("orders").update({status:newStatus, sub_status: clearSub ? null : undefined}).eq("id",orderId);
+    const updateData = clearSub ? {status:newStatus, sub_status:null} : {status:newStatus};
+    await supabase.from("orders").update(updateData).eq("id",orderId);
     setOrders(prev=>prev.map(o=>o.id===orderId?{...o,status:newStatus, sub_status: clearSub ? null : o.sub_status}:o));
     if(setCurrentOrder) setCurrentOrder(prev=>({...prev,status:newStatus, sub_status: clearSub ? null : prev.sub_status}));
   };
