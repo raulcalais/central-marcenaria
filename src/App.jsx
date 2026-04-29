@@ -1006,7 +1006,6 @@ export default function App() {
     };
 
     // FAST PATH — lê localStorage direto, sem esperar rede
-    // Evita o "Verificando sessão..." infinito no F5
     try {
       const projectRef = import.meta.env.VITE_SUPABASE_URL?.match(/\/\/([^.]+)\./)?.[1];
       const key = `sb-${projectRef}-auth-token`;
@@ -1016,17 +1015,23 @@ export default function App() {
         const exp = stored?.expires_at || stored?.user?.exp;
         const valid = exp && (exp * 1000) > Date.now();
         if (valid && stored?.user) {
-          // Sessão válida no cache — mostra app imediatamente
-          setUser({
-            ...stored.user,
-            name: stored.user.user_metadata?.name || stored.user.email?.split("@")[0] || "Usuário",
-            role: "client"
-          });
+          // Mostra tela básica imediatamente
           setAuthLoading(false);
-          // Busca perfil completo em background
+          // Busca perfil completo com role correto em background
           supabase.from("profiles").select("*").eq("id", stored.user.id).maybeSingle().then(({data: profile}) => {
-            if (profile) setUser(prev => prev ? {...prev, ...profile} : prev);
-          }).catch(()=>{});
+            setUser({
+              ...stored.user,
+              name: profile?.name || stored.user.email?.split("@")[0] || "Usuário",
+              phone: profile?.phone || "",
+              role: profile?.role || "client"
+            });
+          }).catch(()=>{
+            setUser({
+              ...stored.user,
+              name: stored.user.email?.split("@")[0] || "Usuário",
+              role: "client"
+            });
+          });
           return;
         }
       }
