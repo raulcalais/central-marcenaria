@@ -1323,14 +1323,21 @@ export default function App() {
     const buildUser = async (session) => {
       if (!session?.user) return null;
       try {
-        const {data: profile} = await supabase.from("profiles").select("*, companies(id,name,access_key)").eq("id", session.user.id).maybeSingle().catch(()=>
-          supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle().then(r=>r)
-        );
-        if (profile) {
+        const { data: profile, error } = await supabase
+          .from("profiles").select("*").eq("id", session.user.id).maybeSingle();
+        if (profile && !error) {
           // Sincroniza email no profile se ainda não tinha (usuários antigos)
           if (!profile.email && session.user.email) {
             await supabase.from("profiles").update({ email: session.user.email }).eq("id", session.user.id);
             profile.email = session.user.email;
+          }
+          // Busca nome da empresa separadamente (não quebra se tabela não existir)
+          let company_name = null;
+          if (profile.company_id) {
+            try {
+              const { data: comp } = await supabase.from("companies").select("name").eq("id", profile.company_id).maybeSingle();
+              company_name = comp?.name || null;
+            } catch(e) {}
           }
           return {
             ...session.user,
@@ -1338,9 +1345,10 @@ export default function App() {
             name: profile.name || session.user.email?.split("@")[0] || "Usuário",
             email: profile.email || session.user.email,
             company_id: profile.company_id || null,
-            company_name: profile.companies?.name || null
+            company_name
           };
         }
+        // Perfil não existe ainda — cria
         const newProfile = { id: session.user.id, name: session.user.email?.split("@")[0] || "Usuário", phone: "", role: "client", email: session.user.email || "", company_id: null };
         await supabase.from("profiles").upsert(newProfile, {onConflict:"id"});
         return {...session.user, ...newProfile};
@@ -1357,14 +1365,30 @@ export default function App() {
         const exp = stored?.expires_at || stored?.user?.exp;
         const valid = exp && (exp * 1000) > Date.now();
         if (valid && stored?.user) {
-          setAuthLoading(false);
-          supabase.from("profiles").select("*, companies(id,name)").eq("id", stored.user.id).maybeSingle().catch(()=>
-              supabase.from("profiles").select("*").eq("id", stored.user.id).maybeSingle().then(r=>r)
-            ).then(({data: profile}) => {
-            setUser({ ...stored.user, name: profile?.name || stored.user.email?.split("@")[0] || "Usuário", phone: profile?.phone || "", role: profile?.role || "client", email: profile?.email || stored.user.email || "", company_id: profile?.company_id || null, company_name: profile?.companies?.name || null });
-          }).catch(()=>{
-            setUser({ ...stored.user, name: stored.user.email?.split("@")[0] || "Usuário", role: "client" });
-          });
+          // Fast path: não chama setAuthLoading(false) ainda — busca role primeiro
+          // para evitar piscar entre admin e client
+          supabase.from("profiles").select("*").eq("id", stored.user.id).maybeSingle()
+            .then(({ data: profile, error }) => {
+              if (profile && !error) {
+                setUser({
+                  ...stored.user,
+                  name: profile.name || stored.user.email?.split("@")[0] || "Usuário",
+                  phone: profile.phone || "",
+                  role: profile.role || "client",
+                  email: profile.email || stored.user.email || "",
+                  company_id: profile.company_id || null,
+                  company_name: null
+                });
+              } else {
+                // Perfil com erro ou inexistente — usa email como fallback mas mantém sessão
+                setUser({ ...stored.user, name: stored.user.email?.split("@")[0] || "Usuário", role: "client", email: stored.user.email || "" });
+              }
+              setAuthLoading(false);
+            })
+            .catch(() => {
+              setUser({ ...stored.user, name: stored.user.email?.split("@")[0] || "Usuário", role: "client" });
+              setAuthLoading(false);
+            });
           return;
         }
       }
