@@ -548,10 +548,14 @@ const NewOrder = ({ user, onSubmit }) => {
 };
 
 // ─── ORDER LIST ───────────────────────────────────────────────────────────────
-const OrderList = ({ user, orders, setSelectedOrder, setActiveTab }) => {
-  const [filter,setFilter]=useState("all");
+const OrderList = ({ user, orders, setSelectedOrder, setActiveTab, initialFilter="all" }) => {
+  const [filter,setFilter]=useState(initialFilter);
   const isAdmin=user.role==="admin";
   const filtered=filter==="all"?orders:orders.filter(o=>o.status===filter);
+
+  // Atualiza o filtro se o initialFilter mudar (ex: vindo do botão do dashboard)
+  useEffect(()=>{ setFilter(initialFilter); },[initialFilter]);
+
   return (
     <div>
       <div style={{marginBottom:22}}>
@@ -768,15 +772,38 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
 };
 
 // ─── ADMIN DASHBOARD ──────────────────────────────────────────────────────────
-const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab }) => {
-  const stats={total:orders.length,aguardando:orders.filter(o=>o.status==="aguardando").length,prod:orders.filter(o=>["analise","corte","filetamento"].includes(o.status)).length,prontos:orders.filter(o=>o.status==="pronto").length};
+const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilter }) => {
+  const [companies, setCompanies] = useState([]);
+
+  // Busca empresas para mostrar nome junto ao cliente
+  useEffect(()=>{
+    supabase.from("companies").select("id,name").then(({data})=>setCompanies(data||[]));
+  },[]);
+
+  const compMap = Object.fromEntries(companies.map(c=>[c.id,c.name]));
+
+  const stats={
+    total:orders.length,
+    aguardando:orders.filter(o=>o.status==="aguardando").length,
+    prod:orders.filter(o=>["analise","corte","filetamento"].includes(o.status)).length,
+    prontos:orders.filter(o=>o.status==="pronto").length,
+  };
+
+  // Navega para a lista filtrada por "aguardando"
+  const verAguardando = () => {
+    setOrdersFilter("aguardando");
+    setActiveTab("orders");
+  };
+
   return (
     <div>
       <div style={{marginBottom:24}}>
         <div className="barlow" style={{fontSize:36,fontWeight:800}}>Painel <span style={{color:"var(--yellow)"}}>Central 4.0</span></div>
         <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>Visão geral de todos os pedidos.</p>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:24}}>
+
+      {/* Cards de resumo */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:20}}>
         {[["Total",stats.total,"📦","var(--yellow)"],["Aguardando",stats.aguardando,"⏳","#64b5f6"],["Em Produção",stats.prod,"🪚","var(--orange)"],["Prontos",stats.prontos,"✅","#4caf72"]].map(([l,v,ic,c])=>(
           <div key={l} className="card" style={{borderTop:`3px solid ${c}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -786,23 +813,82 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab }) => {
           </div>
         ))}
       </div>
-      {stats.aguardando>0&&<div style={{background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.3)",borderRadius:12,padding:"14px 18px",marginBottom:20}}><div style={{fontWeight:600,color:"var(--yellow)",fontSize:15}}>⚠️ {stats.aguardando} pedido(s) aguardando análise</div></div>}
+
+      {/* Alerta aguardando — com botão */}
+      {stats.aguardando>0&&(
+        <div style={{background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.3)",borderRadius:12,padding:"14px 20px",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
+          <div style={{fontWeight:600,color:"var(--yellow)",fontSize:15}}>⚠️ {stats.aguardando} pedido(s) aguardando análise</div>
+          <button onClick={verAguardando} style={{background:"var(--yellow)",color:"var(--black)",border:"none",borderRadius:6,padding:"8px 18px",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+            Ver Aguardando →
+          </button>
+        </div>
+      )}
+
+      {/* Pedidos Recentes */}
       <div className="card">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <div className="barlow" style={{fontSize:20,fontWeight:700}}>Pedidos Recentes</div>
-          <button className="btn-ghost" onClick={()=>setActiveTab("orders")}>Ver todos</button>
+          <button className="btn-ghost" onClick={()=>{ setOrdersFilter("all"); setActiveTab("orders"); }}>Ver todos</button>
         </div>
-        {orders.slice(0,6).map(o=>(
-          <div key={o.id} className="table-row" style={{gridTemplateColumns:"1fr 130px 160px 70px",cursor:"pointer"}} onClick={()=>{setSelectedOrder(o);setActiveTab("order-detail");}}>
-            <div>
-              <div style={{fontWeight:500,fontSize:14,display:"flex",alignItems:"center",gap:8}}>{o.title}{(o.unread_count||0)>0&&<span className="msg-dot" title="Nova mensagem"/>}</div>
-              <div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>{o.display_id} · {o.client_name}</div>
+
+        {/* Cabeçalho da tabela */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 160px 110px 160px 70px",padding:"8px 12px",borderBottom:"2px solid var(--gray-mid)"}}>
+          <span style={{fontSize:11,color:"var(--gray-light)",fontWeight:600,textTransform:"uppercase",letterSpacing:.8}}>Pedido</span>
+          <span style={{fontSize:11,color:"var(--gray-light)",fontWeight:600,textTransform:"uppercase",letterSpacing:.8}}>Empresa / Cliente</span>
+          <span style={{fontSize:11,color:"var(--gray-light)",fontWeight:600,textTransform:"uppercase",letterSpacing:.8,textAlign:"center"}}>Abertura</span>
+          <span style={{fontSize:11,color:"var(--gray-light)",fontWeight:600,textTransform:"uppercase",letterSpacing:.8}}>Status</span>
+          <span></span>
+        </div>
+
+        {orders.slice(0,8).map(o=>{
+          const companyName = o.company_id ? compMap[o.company_id] : null;
+          return (
+            <div key={o.id} style={{display:"grid",gridTemplateColumns:"1fr 160px 110px 160px 70px",padding:"12px",borderBottom:"1px solid var(--gray-mid)",alignItems:"center",cursor:"pointer",transition:"background .15s"}}
+              onClick={()=>{setSelectedOrder(o);setActiveTab("order-detail");}}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,.03)"}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+
+              {/* Título + ID */}
+              <div>
+                <div style={{fontWeight:500,fontSize:13,display:"flex",alignItems:"center",gap:6}}>
+                  {o.title}
+                  {(o.unread_count||0)>0&&<span className="msg-dot" title="Nova mensagem"/>}
+                </div>
+                <div style={{fontSize:11,color:"var(--gray-light)",marginTop:2}}>{o.display_id}</div>
+              </div>
+
+              {/* Empresa + Usuário (separados) */}
+              <div>
+                {companyName ? (
+                  <>
+                    <div style={{fontSize:12,color:"var(--yellow)",fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
+                      🏢 {companyName}
+                    </div>
+                    <div style={{fontSize:11,color:"var(--gray-light)",marginTop:2,display:"flex",alignItems:"center",gap:3}}>
+                      👤 {o.client_name}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{fontSize:13,color:"var(--gray-light)",display:"flex",alignItems:"center",gap:4}}>
+                    👤 {o.client_name}
+                  </div>
+                )}
+              </div>
+
+              {/* Data com label "Abertura" */}
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:10,color:"var(--gray-light)",marginBottom:2,textTransform:"uppercase",letterSpacing:.5}}>Abertura</div>
+                <div style={{fontSize:13,fontWeight:500}}>{new Date(o.created_at).toLocaleDateString("pt-BR")}</div>
+              </div>
+
+              {/* Status */}
+              <StatusBadge status={o.status} subStatus={o.sub_status}/>
+
+              {/* Seta */}
+              <div style={{color:"var(--yellow)",fontSize:18,textAlign:"right"}}>→</div>
             </div>
-            <div style={{fontSize:13,color:"var(--gray-light)"}}>{new Date(o.created_at).toLocaleDateString("pt-BR")}</div>
-            <StatusBadge status={o.status} subStatus={o.sub_status}/>
-            <div style={{color:"var(--yellow)",fontSize:18}}>→</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1034,6 +1120,8 @@ export default function App() {
   const [orders,setOrders]=useState([]);
   const [ordersLoading,setOrdersLoading]=useState(false);
   const [selectedOrder,setSelectedOrder]=useState(null);
+  // Filtro de pedidos — pode ser setado pelo AdminDashboard para abrir a lista já filtrada
+  const [ordersFilter,setOrdersFilter]=useState("all");
   const inactivityRef=useRef(null);
   const heartbeatRef=useRef(null);
 
@@ -1095,25 +1183,18 @@ export default function App() {
     return()=>{ clearTimeout(authTimeout);subscription.unsubscribe(); };
   },[]);
 
-  // ── CORREÇÃO PRINCIPAL: filtro explícito por empresa, não depende só da RLS ──
   const loadOrders=useCallback(async()=>{
     if(!user) return;
     setOrdersLoading(true);
     try {
       let query=supabase.from("orders").select("*").order("created_at",{ascending:false});
-
       if(user.role!=="admin") {
         if(user.company_id) {
-          // Membro de empresa: vê pedidos da empresa OU pedidos próprios
-          // Usa filtro explícito para não depender só da RLS
           query=query.or(`client_id.eq.${user.id},company_id.eq.${user.company_id}`);
         } else {
-          // Cliente individual: só os próprios pedidos
           query=query.eq("client_id",user.id);
         }
       }
-      // Admin não tem filtro — vê tudo
-
       const {data}=await query;
       const list=data||[];
       if(list.length>0){
@@ -1143,7 +1224,7 @@ export default function App() {
   },[user,loadOrders]);
 
   const handleLogin=(u)=>setUser(u);
-  const handleLogout=async()=>{ await supabase.auth.signOut();setUser(null);setOrders([]);setActiveTab("dashboard"); };
+  const handleLogout=async()=>{ await supabase.auth.signOut();setUser(null);setOrders([]);setActiveTab("dashboard");setOrdersFilter("all"); };
 
   const handleUpdateStatus=async(orderId,newStatus,setCurrentOrder)=>{
     const clearSub=newStatus!=="analise";
@@ -1160,14 +1241,14 @@ export default function App() {
     if(activeTab==="order-detail"&&selectedOrder) return <OrderDetail order={selectedOrder} user={user} onBack={()=>setActiveTab("orders")} onUpdateStatus={handleUpdateStatus}/>;
     if(ordersLoading) return <Loading text="Carregando pedidos..."/>;
     if(user.role==="admin"){
-      if(activeTab==="dashboard") return <AdminDashboard orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab}/>;
-      if(activeTab==="orders") return <OrderList user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab}/>;
+      if(activeTab==="dashboard") return <AdminDashboard orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} setOrdersFilter={setOrdersFilter}/>;
+      if(activeTab==="orders") return <OrderList user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} initialFilter={ordersFilter}/>;
       if(activeTab==="users") return <UsersPage orders={orders}/>;
       if(activeTab==="companies") return <CompaniesPage/>;
     } else {
       if(activeTab==="dashboard") return <ClientDashboard user={user} orders={orders} setActiveTab={setActiveTab} setSelectedOrder={setSelectedOrder}/>;
       if(activeTab==="new-order") return <NewOrder user={user} onSubmit={()=>{loadOrders();setActiveTab("orders");}}/>;
-      if(activeTab==="orders") return <OrderList user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab}/>;
+      if(activeTab==="orders") return <OrderList user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} initialFilter="all"/>;
     }
   };
 
