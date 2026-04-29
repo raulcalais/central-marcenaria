@@ -53,6 +53,9 @@ const FontLoader = () => (
     .input-field:focus { border-color:var(--yellow); }
     .input-field::placeholder { color:var(--gray-light); }
     textarea.input-field { resize:vertical; min-height:100px; }
+    .search-field { background:var(--gray-mid); border:1.5px solid var(--gray); border-radius:8px; color:var(--white); padding:10px 14px 10px 38px; font-family:'DM Sans',sans-serif; font-size:14px; width:100%; transition:border-color .2s; outline:none; }
+    .search-field:focus { border-color:var(--yellow); }
+    .search-field::placeholder { color:var(--gray-light); }
     .badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; }
     .badge-yellow { background:rgba(245,184,0,.15); color:var(--yellow); }
     .badge-green { background:rgba(26,107,46,.2); color:#4caf72; }
@@ -74,8 +77,34 @@ const FontLoader = () => (
     .msg-dot { width:9px; height:9px; border-radius:50%; background:#ef5350; display:inline-block; flex-shrink:0; box-shadow:0 0 6px rgba(239,83,80,.6); animation:pulseDot 1.5s infinite; }
     @keyframes pulseDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.7;transform:scale(1.3)} }
     .modal-overlay { position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,.75); z-index:500; display:flex; align-items:center; justify-content:center; }
+    .highlight { background:rgba(245,184,0,.25); border-radius:3px; padding:0 2px; color:var(--yellow); font-weight:600; }
   `}</style>
 );
+
+// ─── HELPER: busca em pedido por texto ────────────────────────────────────────
+// Extrai OT do título e busca em: título, cliente, OT
+const matchSearch = (order, term) => {
+  if (!term.trim()) return true;
+  const q = term.toLowerCase().trim();
+  const title = (order.title||"").toLowerCase();
+  const client = (order.client_name||"").toLowerCase();
+  // Extrai número OT do título, ex: "[OT:1234]" → "1234"
+  const otMatch = order.title?.match(/\[OT:([^\]]+)\]/i);
+  const ot = otMatch ? otMatch[1].toLowerCase() : "";
+  return title.includes(q) || client.includes(q) || ot.includes(q);
+};
+
+// Destaca o termo buscado no texto
+const Highlight = ({ text, term }) => {
+  if (!term.trim()) return <>{text}</>;
+  const idx = text.toLowerCase().indexOf(term.toLowerCase().trim());
+  if (idx === -1) return <>{text}</>;
+  return <>
+    {text.slice(0,idx)}
+    <mark className="highlight">{text.slice(idx,idx+term.trim().length)}</mark>
+    {text.slice(idx+term.trim().length)}
+  </>;
+};
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -107,6 +136,8 @@ const Icon = ({ name, size=18 }) => {
     users:    "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
     building: "M3 21h18 M3 7l9-4 9 4 M4 11h16v10H4V11z M9 21v-6h6v6",
     paperclip:"M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48",
+    search:   "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0",
+    x:        "M18 6L6 18 M6 6l12 12",
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -114,6 +145,26 @@ const Icon = ({ name, size=18 }) => {
     </svg>
   );
 };
+
+// ─── SEARCH INPUT component ───────────────────────────────────────────────────
+const SearchInput = ({ value, onChange, placeholder="Buscar por ambiente, cliente ou OT..." }) => (
+  <div style={{position:"relative",flex:1}}>
+    <div style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"var(--gray-light)",pointerEvents:"none",display:"flex"}}>
+      <Icon name="search" size={15}/>
+    </div>
+    <input
+      className="search-field"
+      placeholder={placeholder}
+      value={value}
+      onChange={e=>onChange(e.target.value)}
+    />
+    {value && (
+      <button onClick={()=>onChange("")} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"var(--gray-light)",cursor:"pointer",display:"flex",padding:2}}>
+        <Icon name="x" size={14}/>
+      </button>
+    )}
+  </div>
+);
 
 const StatusBadge = ({ status, subStatus }) => {
   const cfg = STATUS_CONFIG[status]||STATUS_CONFIG.aguardando;
@@ -125,7 +176,6 @@ const StatusBadge = ({ status, subStatus }) => {
   );
 };
 
-// ─── STATUS STEPS — FIX: Aguardando usa created_at como fallback ──────────────
 const StatusSteps = ({ currentStatus, stepHistory={}, createdAt }) => {
   const currentStep = STATUS_CONFIG[currentStatus]?.step ?? 0;
   return (
@@ -133,7 +183,6 @@ const StatusSteps = ({ currentStatus, stepHistory={}, createdAt }) => {
       <div style={{display:"flex",alignItems:"flex-start"}}>
         {STEPS.map((step,i) => {
           const done=i<currentStep, active=i===currentStep;
-          // Aguardando usa created_at como timestamp pois é o estado inicial
           const ts = stepHistory[step.key] || (step.key==="aguardando" && createdAt ? createdAt : null);
           return (
             <div key={step.key} style={{display:"flex",alignItems:"center",flex:1}}>
@@ -142,12 +191,7 @@ const StatusSteps = ({ currentStatus, stepHistory={}, createdAt }) => {
                   {done?"✓":step.icon}
                 </div>
                 <span style={{fontSize:10,textAlign:"center",color:active?"var(--yellow)":done?"#4caf72":"var(--gray-light)",fontWeight:active?700:400,lineHeight:1.3}}>{step.label}</span>
-                {ts && (
-                  <span style={{fontSize:9,color:"var(--gray-light)",textAlign:"center",lineHeight:1.2}}>
-                    {new Date(ts).toLocaleDateString("pt-BR")}<br/>
-                    {new Date(ts).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}
-                  </span>
-                )}
+                {ts && <span style={{fontSize:9,color:"var(--gray-light)",textAlign:"center",lineHeight:1.2}}>{new Date(ts).toLocaleDateString("pt-BR")}<br/>{new Date(ts).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</span>}
               </div>
               {i<STEPS.length-1 && <div style={{flex:1,height:3,borderRadius:2,marginBottom:32,background:i<currentStep?"#4caf72":"var(--gray-mid)",transition:"background .3s"}}/>}
             </div>
@@ -443,10 +487,8 @@ const NewOrder = ({ user, onSubmit }) => {
 
   const resetForm=()=>{ setSubmitted(null);setTitle("");setClientName("");setOt("");setDescription("");setFiles([]);setImages([]); };
 
-  // ── FIX POPUP: usa position fixed com z-index alto, independente do conteúdo abaixo ──
   return (
     <>
-      {/* Popup de confirmação — aparece acima de tudo, não é afetado pelo loadOrders */}
       {submitted && (
         <div className="modal-overlay" style={{zIndex:9999}}>
           <div style={{background:"var(--gray-dark)",border:"1px solid rgba(76,175,114,.3)",borderRadius:16,padding:"36px 32px",maxWidth:460,width:"90%",textAlign:"center",animation:"fadeIn .3s ease",boxShadow:"0 20px 60px rgba(0,0,0,.8)"}}>
@@ -458,7 +500,7 @@ const NewOrder = ({ user, onSubmit }) => {
               <div style={{fontSize:22,fontWeight:800,color:"var(--yellow)",marginBottom:12}}>{submitted.display_id}</div>
               <div style={{display:"flex",flexDirection:"column",gap:8,fontSize:13}}>
                 <div style={{display:"flex",gap:8}}><span>📊</span><span>Acompanhe no <strong>painel</strong> em tempo real</span></div>
-                <div style={{display:"flex",gap:8}}><span>💬</span><span>Use o <strong>chat interno</strong> para dúvidas ou para enviar mais arquivos</span></div>
+                <div style={{display:"flex",gap:8}}><span>💬</span><span>Use o <strong>chat interno</strong> para dúvidas ou enviar mais arquivos</span></div>
                 <div style={{display:"flex",gap:8}}><span>📲</span><span>Notificação quando <strong>pronto para retirada</strong></span></div>
               </div>
             </div>
@@ -469,8 +511,6 @@ const NewOrder = ({ user, onSubmit }) => {
           </div>
         </div>
       )}
-
-      {/* Formulário de novo pedido */}
       <div>
         <div style={{marginBottom:20}}>
           <div className="barlow" style={{fontSize:30,fontWeight:800}}>Novo Pedido</div>
@@ -560,33 +600,51 @@ const NewOrder = ({ user, onSubmit }) => {
   );
 };
 
-// ─── ORDER LIST ───────────────────────────────────────────────────────────────
+// ─── ORDER LIST ─── com busca integrada ───────────────────────────────────────
 const OrderList = ({ user, orders, setSelectedOrder, setActiveTab, initialFilter="all" }) => {
   const [filter,setFilter]=useState(initialFilter);
+  const [search,setSearch]=useState("");
   const isAdmin=user.role==="admin";
-  const filtered=filter==="all"?orders:orders.filter(o=>o.status===filter);
+
   useEffect(()=>{ setFilter(initialFilter); },[initialFilter]);
+
+  // Aplica filtro de status E busca
+  const filtered = orders
+    .filter(o=>filter==="all"||o.status===filter)
+    .filter(o=>matchSearch(o,search));
+
   return (
     <div>
-      <div style={{marginBottom:22}}>
+      <div style={{marginBottom:18}}>
         <div className="barlow" style={{fontSize:32,fontWeight:800}}>{isAdmin?"Todos os Pedidos":"Meus Pedidos"}</div>
-        <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{filtered.length} pedido(s)</p>
+        <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{filtered.length} pedido(s){search?` para "${search}"`:""}</p>
       </div>
-      <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
-        {[["all","Todos"],["aguardando","Aguardando"],["analise","Análise"],["corte","Corte"],["filetamento","Filetamento"],["pronto","Pronto"]].map(([k,l])=>(
-          <button key={k} onClick={()=>setFilter(k)} style={{padding:"7px 16px",borderRadius:20,border:`1.5px solid ${filter===k?"var(--yellow)":"var(--gray)"}`,background:filter===k?"rgba(245,184,0,.1)":"transparent",color:filter===k?"var(--yellow)":"var(--gray-light)",fontSize:13,cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .2s"}}>{l}</button>
-        ))}
+
+      {/* Filtros de status + busca na mesma linha */}
+      <div style={{display:"flex",gap:10,marginBottom:18,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {[["all","Todos"],["aguardando","Aguardando"],["analise","Análise"],["corte","Corte"],["filetamento","Filetamento"],["pronto","Pronto"]].map(([k,l])=>(
+            <button key={k} onClick={()=>setFilter(k)} style={{padding:"7px 16px",borderRadius:20,border:`1.5px solid ${filter===k?"var(--yellow)":"var(--gray)"}`,background:filter===k?"rgba(245,184,0,.1)":"transparent",color:filter===k?"var(--yellow)":"var(--gray-light)",fontSize:13,cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .2s",whiteSpace:"nowrap"}}>{l}</button>
+          ))}
+        </div>
+        <SearchInput value={search} onChange={setSearch}/>
       </div>
+
       <div className="card" style={{padding:0,overflow:"hidden"}}>
         <div className="table-row table-header" style={{gridTemplateColumns:isAdmin?"2fr 130px 150px 70px":"2fr 150px 70px",cursor:"default"}}>
           <span>Pedido</span>{isAdmin&&<span>Cliente</span>}<span>Status</span><span></span>
         </div>
-        {filtered.length===0 ? <div style={{textAlign:"center",padding:40,color:"var(--gray-light)"}}><div style={{fontSize:32,marginBottom:8}}>📂</div>Nenhum pedido.</div>
-        : filtered.map(o=>(
+        {filtered.length===0 ? (
+          <div style={{textAlign:"center",padding:40,color:"var(--gray-light)"}}>
+            <div style={{fontSize:32,marginBottom:8}}>🔍</div>
+            <div>{search?`Nenhum resultado para "${search}"` :"Nenhum pedido."}</div>
+            {search&&<button onClick={()=>setSearch("")} className="btn-ghost" style={{marginTop:12,fontSize:13}}>Limpar busca</button>}
+          </div>
+        ) : filtered.map(o=>(
           <div key={o.id} className="table-row" style={{gridTemplateColumns:isAdmin?"2fr 130px 150px 70px":"2fr 150px 70px",cursor:"pointer"}} onClick={()=>{setSelectedOrder(o);setActiveTab("order-detail");}}>
             <div>
               <div style={{fontWeight:500,fontSize:14,display:"flex",alignItems:"center",gap:8}}>
-                {o.title}
+                <Highlight text={o.title} term={search}/>
                 {(o.unread_count||0)>0 && <span className="msg-dot" title="Nova mensagem"/>}
               </div>
               <div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>
@@ -594,7 +652,7 @@ const OrderList = ({ user, orders, setSelectedOrder, setActiveTab, initialFilter
                 {!isAdmin && user.company_id && o.client_id!==user.id && <span style={{marginLeft:8,color:"var(--yellow)",fontWeight:600}}>· 👤 {o.client_name}</span>}
               </div>
             </div>
-            {isAdmin&&<div style={{fontSize:13}}>{o.client_name}</div>}
+            {isAdmin&&<div style={{fontSize:13}}><Highlight text={o.client_name||""} term={search}/></div>}
             <StatusBadge status={o.status} subStatus={o.sub_status}/>
             <div style={{color:"var(--yellow)",fontSize:18}}>→</div>
           </div>
@@ -622,8 +680,7 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
   const loadFiles=async()=>{ const {data}=await supabase.from("order_files").select("*").eq("order_id",order.id); setOrderFiles(data||[]); };
 
   useEffect(()=>{
-    loadFiles();
-    loadMessages();
+    loadFiles(); loadMessages();
     const field=user.role==="admin"?"last_read_admin_at":"last_read_client_at";
     supabase.from("orders").update({[field]:new Date().toISOString()}).eq("id",order.id).then(()=>{});
     pollRef.current=setInterval(loadMessages,4000);
@@ -639,10 +696,8 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
     setSending(false);
   };
 
-  // ── FIX: Upload de arquivo adicional no chat ──────────────────────────────
   const handleAttachFile = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const file = e.target.files?.[0]; if (!file) return;
     setUploading(true);
     try {
       const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
@@ -653,12 +708,10 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
       const isImage=file.type?.startsWith("image");
       await supabase.from("order_files").insert({order_id:order.id,name:file.name,size:(file.size/1024).toFixed(0)+" KB",type:file.name.split(".").pop(),url:publicUrl,is_image:isImage});
       await loadFiles();
-      // Manda mensagem automática informando o novo arquivo
       await supabase.from("messages").insert({order_id:order.id,sender_id:user.id,sender_name:user.name||user.email,sender_role:user.role,text:`📎 Novo arquivo adicionado: ${file.name}`});
       await loadMessages();
     } catch(err){ console.error("Erro ao anexar:",err); }
-    setUploading(false);
-    e.target.value="";
+    setUploading(false); e.target.value="";
   };
 
   const handleToggleChapa=async()=>{
@@ -670,19 +723,14 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
     const next=NEXT_STATUS[currentOrder.status]; if(!next) return;
     try {
       const now=new Date().toISOString();
-      // FIX: grava timestamp para todas as etapas percorridas, incluindo as que foram puladas
       const newHistory={...(currentOrder.step_history||{})};
-      // Marca todas as etapas entre o status atual e o próximo como concluídas
       const currentStep=STATUS_CONFIG[currentOrder.status]?.step??0;
       const nextStep=STATUS_CONFIG[next]?.step??0;
-      for (let i=currentStep; i<nextStep; i++) {
-        const stepKey=STEPS[i]?.key;
-        if (stepKey && !newHistory[stepKey]) newHistory[stepKey]=now;
-      }
+      for (let i=currentStep; i<nextStep; i++) { const sk=STEPS[i]?.key; if(sk&&!newHistory[sk]) newHistory[sk]=now; }
       newHistory[next]=now;
       await supabase.from("orders").update({status:next,step_history:newHistory,sub_status:null}).eq("id",currentOrder.id);
       setCurrentOrder(prev=>({...prev,status:next,step_history:newHistory,sub_status:null}));
-      onUpdateStatus(currentOrder.id,next,()=>{});
+      onUpdateStatus(currentOrder.id,next,()=>{},newHistory);
     } catch(e){}
   };
 
@@ -711,7 +759,6 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
       </div>
       <div className="card" style={{marginBottom:20}}>
         <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:4}}>Progresso do Pedido</div>
-        {/* FIX: passa createdAt para mostrar timestamp do Aguardando */}
         <StatusSteps currentStatus={currentOrder.status} stepHistory={currentOrder.step_history||{}} createdAt={currentOrder.created_at}/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:20}}>
@@ -734,8 +781,6 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
               </div>
             </div>
           )}
-
-          {/* ── Chat com botão de anexar arquivo ── */}
           <div className="card">
             <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:12}}>💬 Mensagens</div>
             <div ref={chatRef} style={{maxHeight:280,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,marginBottom:14,paddingRight:4}}>
@@ -750,16 +795,9 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
                 );
               })}
             </div>
-
-            {/* Área de input: texto + clipe + enviar */}
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              {/* Input oculto para arquivo */}
               <input ref={attachRef} type="file" style={{display:"none"}} onChange={handleAttachFile} accept=".dxf,.cnc,.dwg,.pdf,.svg,.nc,.zip,image/*"/>
-              {/* Botão de anexar */}
-              <button
-                onClick={()=>attachRef.current.click()}
-                disabled={uploading}
-                title="Anexar arquivo ou imagem ao pedido"
+              <button onClick={()=>attachRef.current.click()} disabled={uploading} title="Anexar arquivo ao pedido"
                 style={{background:"var(--gray-mid)",border:"1.5px solid var(--gray)",borderRadius:8,color:"var(--gray-light)",cursor:"pointer",padding:"11px 12px",flexShrink:0,transition:"all .2s",display:"flex",alignItems:"center",opacity:uploading?0.5:1}}
                 onMouseEnter={e=>{ e.currentTarget.style.borderColor="var(--yellow)"; e.currentTarget.style.color="var(--yellow)"; }}
                 onMouseLeave={e=>{ e.currentTarget.style.borderColor="var(--gray)"; e.currentTarget.style.color="var(--gray-light)"; }}>
@@ -768,9 +806,7 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
               <input className="input-field" placeholder="Digite uma mensagem..." value={newMsg} onChange={e=>setNewMsg(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSend()} style={{flex:1}}/>
               <button className="btn-primary" onClick={handleSend} disabled={sending} style={{padding:"0 16px",flexShrink:0}}><Icon name="send" size={16}/></button>
             </div>
-            <div style={{fontSize:11,color:"var(--gray-light)",marginTop:6,textAlign:"center"}}>
-              📎 Use o clipe para enviar arquivos adicionais a qualquer momento
-            </div>
+            <div style={{fontSize:11,color:"var(--gray-light)",marginTop:6,textAlign:"center"}}>📎 Use o clipe para enviar arquivos adicionais a qualquer momento</div>
           </div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -782,14 +818,11 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
               </div>
             ))}
           </div>
-          {/* Histórico de etapas — FIX: inclui Aguardando com created_at */}
           {(()=>{
-            const history={...( currentOrder.step_history||{})};
-            // Aguardando sempre tem data (criação do pedido)
-            if (!history.aguardando) history.aguardando = currentOrder.created_at;
-            const hasAnyHistory = Object.keys(history).length > 0;
-            if (!hasAnyHistory) return null;
+            const history={...(currentOrder.step_history||{})};
+            if (!history.aguardando) history.aguardando=currentOrder.created_at;
             const stepKeys=STEPS.map(s=>s.key).filter(k=>history[k]);
+            if (stepKeys.length===0) return null;
             const firstTs=new Date(currentOrder.created_at);
             const lastTs=stepKeys.length>1?new Date(history[stepKeys[stepKeys.length-1]]):null;
             const diasTotal=lastTs?Math.ceil((lastTs-firstTs)/(1000*60*60*24)):Math.ceil((new Date()-firstTs)/(1000*60*60*24));
@@ -836,19 +869,34 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
   );
 };
 
-// ─── ADMIN DASHBOARD ──────────────────────────────────────────────────────────
+// ─── ADMIN DASHBOARD ─── com busca nos Pedidos Recentes ───────────────────────
 const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilter }) => {
   const [companies,setCompanies]=useState([]);
+  const [dashSearch,setDashSearch]=useState("");
+
   useEffect(()=>{ supabase.from("companies").select("id,name").then(({data})=>setCompanies(data||[])); },[]);
   const compMap=Object.fromEntries(companies.map(c=>[c.id,c.name]));
-  const stats={total:orders.length,aguardando:orders.filter(o=>o.status==="aguardando").length,prod:orders.filter(o=>["analise","corte","filetamento"].includes(o.status)).length,prontos:orders.filter(o=>o.status==="pronto").length};
+
+  const stats={
+    total:orders.length,
+    aguardando:orders.filter(o=>o.status==="aguardando").length,
+    prod:orders.filter(o=>["analise","corte","filetamento"].includes(o.status)).length,
+    prontos:orders.filter(o=>o.status==="pronto").length,
+  };
+
   const verAguardando=()=>{ setOrdersFilter("aguardando"); setActiveTab("orders"); };
+
+  // Pedidos filtrados pela busca do dashboard
+  const dashFiltered = orders.filter(o=>matchSearch(o,dashSearch));
+
   return (
     <div>
       <div style={{marginBottom:24}}>
         <div className="barlow" style={{fontSize:36,fontWeight:800}}>Painel <span style={{color:"var(--yellow)"}}>Central 4.0</span></div>
         <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>Visão geral de todos os pedidos.</p>
       </div>
+
+      {/* Cards de resumo */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:20}}>
         {[["Total",stats.total,"📦","var(--yellow)"],["Aguardando",stats.aguardando,"⏳","#64b5f6"],["Em Produção",stats.prod,"🪚","var(--orange)"],["Prontos",stats.prontos,"✅","#4caf72"]].map(([l,v,ic,c])=>(
           <div key={l} className="card" style={{borderTop:`3px solid ${c}`}}>
@@ -859,23 +907,39 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilte
           </div>
         ))}
       </div>
+
+      {/* Alerta aguardando */}
       {stats.aguardando>0&&(
         <div style={{background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.3)",borderRadius:12,padding:"14px 20px",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
           <div style={{fontWeight:600,color:"var(--yellow)",fontSize:15}}>⚠️ {stats.aguardando} pedido(s) aguardando análise</div>
           <button onClick={verAguardando} style={{background:"var(--yellow)",color:"var(--black)",border:"none",borderRadius:6,padding:"8px 18px",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Ver Aguardando →</button>
         </div>
       )}
+
+      {/* Pedidos Recentes */}
       <div className="card">
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          <div className="barlow" style={{fontSize:20,fontWeight:700}}>Pedidos Recentes</div>
-          <button className="btn-ghost" onClick={()=>{ setOrdersFilter("all"); setActiveTab("orders"); }}>Ver todos</button>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:12,flexWrap:"wrap"}}>
+          <div className="barlow" style={{fontSize:20,fontWeight:700,flexShrink:0}}>Pedidos Recentes</div>
+          <div style={{display:"flex",gap:10,alignItems:"center",flex:1,justifyContent:"flex-end",minWidth:280}}>
+            <SearchInput value={dashSearch} onChange={setDashSearch} placeholder="Buscar ambiente, cliente ou OT..."/>
+            <button className="btn-ghost" style={{flexShrink:0,fontSize:13}} onClick={()=>{ setOrdersFilter("all"); setActiveTab("orders"); }}>Ver todos</button>
+          </div>
         </div>
+
+        {/* Cabeçalho */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 160px 110px 160px 70px",padding:"8px 12px",borderBottom:"2px solid var(--gray-mid)"}}>
           {["Pedido","Empresa / Cliente","Abertura","Status",""].map((h,i)=>(
             <span key={i} style={{fontSize:11,color:"var(--gray-light)",fontWeight:600,textTransform:"uppercase",letterSpacing:.8,textAlign:i===2?"center":"left"}}>{h}</span>
           ))}
         </div>
-        {orders.slice(0,8).map(o=>{
+
+        {dashFiltered.length===0 ? (
+          <div style={{textAlign:"center",padding:32,color:"var(--gray-light)"}}>
+            <div style={{fontSize:28,marginBottom:8}}>🔍</div>
+            <div>Nenhum resultado para "{dashSearch}"</div>
+            <button onClick={()=>setDashSearch("")} className="btn-ghost" style={{marginTop:10,fontSize:13}}>Limpar busca</button>
+          </div>
+        ) : dashFiltered.slice(0,10).map(o=>{
           const companyName=o.company_id?compMap[o.company_id]:null;
           return (
             <div key={o.id} style={{display:"grid",gridTemplateColumns:"1fr 160px 110px 160px 70px",padding:"12px",borderBottom:"1px solid var(--gray-mid)",alignItems:"center",cursor:"pointer",transition:"background .15s"}}
@@ -883,15 +947,18 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilte
               onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,.03)"}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <div>
-                <div style={{fontWeight:500,fontSize:13,display:"flex",alignItems:"center",gap:6}}>{o.title}{(o.unread_count||0)>0&&<span className="msg-dot" title="Nova mensagem"/>}</div>
+                <div style={{fontWeight:500,fontSize:13,display:"flex",alignItems:"center",gap:6}}>
+                  <Highlight text={o.title} term={dashSearch}/>
+                  {(o.unread_count||0)>0&&<span className="msg-dot" title="Nova mensagem"/>}
+                </div>
                 <div style={{fontSize:11,color:"var(--gray-light)",marginTop:2}}>{o.display_id}</div>
               </div>
               <div>
                 {companyName?(<>
                   <div style={{fontSize:12,color:"var(--yellow)",fontWeight:600}}>🏢 {companyName}</div>
-                  <div style={{fontSize:11,color:"var(--gray-light)",marginTop:2}}>👤 {o.client_name}</div>
+                  <div style={{fontSize:11,color:"var(--gray-light)",marginTop:2}}>👤 <Highlight text={o.client_name||""} term={dashSearch}/></div>
                 </>):(
-                  <div style={{fontSize:13,color:"var(--gray-light)"}}>👤 {o.client_name}</div>
+                  <div style={{fontSize:13,color:"var(--gray-light)"}}>👤 <Highlight text={o.client_name||""} term={dashSearch}/></div>
                 )}
               </div>
               <div style={{textAlign:"center"}}>
@@ -903,6 +970,13 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilte
             </div>
           );
         })}
+
+        {dashFiltered.length>10 && (
+          <div style={{padding:"12px 16px",textAlign:"center",fontSize:13,color:"var(--gray-light)",borderTop:"1px solid var(--gray-mid)"}}>
+            Mostrando 10 de {dashFiltered.length} resultados ·{" "}
+            <span style={{color:"var(--yellow)",cursor:"pointer",fontWeight:600}} onClick={()=>{ setOrdersFilter("all"); setActiveTab("orders"); }}>Ver todos →</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1030,75 +1104,21 @@ const UsersPage = ({ orders }) => {
   return (
     <div>
       {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:600,background:toast.type==="red"?"#b71c1c":"#1b5e20",border:`1px solid ${toast.type==="red"?"#ef5350":"#4caf72"}`,borderRadius:10,padding:"12px 20px",color:"white",fontSize:14,fontWeight:500,animation:"fadeIn .3s ease"}}>{toast.type==="red"?"🗑️":"✅"} {toast.msg}</div>}
-      {editClient&&(
-        <div className="modal-overlay">
-          <div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:"28px",maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}>
-            <div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4}}>✏️ Editar Cliente</div>
-            <div style={{fontSize:12,color:"var(--gray-light)",marginBottom:20,background:"var(--gray-mid)",borderRadius:6,padding:"6px 10px",display:"inline-block"}}>{editClient.email||editClient.id.slice(0,16)+"…"}</div>
-            <div style={{display:"flex",flexDirection:"column",gap:13}}>
-              <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>NOME COMPLETO / EMPRESA</label><input className="input-field" value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Nome do cliente"/></div>
-              <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>TELEFONE / WHATSAPP</label><input className="input-field" value={editPhone} onChange={e=>setEditPhone(e.target.value)} placeholder="(31) 99999-0000"/></div>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}>
-              <button className="btn-ghost" onClick={()=>setEditClient(null)}>Cancelar</button>
-              <button className="btn-primary" onClick={handleSaveEdit} disabled={saving||!editName.trim()}>{saving?<><div className="spinner"/>Salvando...</>:"💾 Salvar"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {resetClient&&(
-        <div className="modal-overlay">
-          <div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:"28px",maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}>
-            <div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4}}>🔑 Redefinir Senha</div>
-            <div style={{background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.2)",borderRadius:8,padding:"10px 14px",fontSize:13,marginBottom:18,lineHeight:1.7}}>💡 Será enviado um <strong>link de redefinição</strong> por e-mail.</div>
-            <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>E-MAIL DO CLIENTE</label><input className="input-field" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="email@cliente.com"/></div>
-            <div style={{display:"flex",gap:10,marginTop:20,justifyContent:"flex-end"}}>
-              <button className="btn-ghost" onClick={()=>setResetClient(null)}>Cancelar</button>
-              <button className="btn-primary" onClick={handleResetPassword} disabled={saving||!resetEmail.trim()}>{saving?<><div className="spinner"/>Enviando...</>:"📧 Enviar Link"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {deleteClient&&(
-        <div className="modal-overlay">
-          <div style={{background:"var(--gray-dark)",border:"1px solid rgba(200,16,46,.4)",borderRadius:14,padding:"28px",maxWidth:440,width:"90%",animation:"fadeIn .25s ease"}}>
-            <div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4,color:"#ef5350"}}>⚠️ Excluir Cliente</div>
-            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:16}}>Esta ação é <strong style={{color:"var(--white)"}}>permanente e irreversível</strong>.</div>
-            <div style={{background:"rgba(200,16,46,.08)",border:"1px solid rgba(200,16,46,.2)",borderRadius:8,padding:"12px 14px",marginBottom:16}}>
-              <div style={{fontSize:14,fontWeight:600}}>{displayName(deleteClient)}</div>
-              {deleteClient.email&&<div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>{deleteClient.email}</div>}
-              <div style={{fontSize:12,color:"var(--gray-light)",marginTop:6}}>{orderCount(deleteClient)} pedido(s) — <strong style={{color:"var(--white)"}}>histórico mantido</strong>.</div>
-            </div>
-            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>DELETAR</code> para confirmar:</div>
-            <input className="input-field" value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="DELETAR" style={{borderColor:deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}}/>
-            <div style={{fontSize:12,color:"var(--gray-light)",marginTop:10,padding:"8px 10px",background:"rgba(255,255,255,.03)",borderRadius:6}}>ℹ️ Login permanece no Supabase — remova em Authentication → Users se necessário.</div>
-            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
-              <button className="btn-ghost" onClick={()=>{setDeleteClient(null);setDeleteConfirm("");}}>Cancelar</button>
-              <button style={{background:deleteConfirm==="DELETAR"?"#c62828":"var(--gray-mid)",color:"white",border:`1px solid ${deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}`,borderRadius:6,padding:"11px 22px",fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,cursor:deleteConfirm==="DELETAR"?"pointer":"not-allowed",opacity:deleteConfirm==="DELETAR"?1:0.5,display:"inline-flex",alignItems:"center",gap:8,transition:"all .2s"}} onClick={handleDelete} disabled={deleteConfirm!=="DELETAR"||saving}>
-                {saving?<><div className="spinner"/>Excluindo...</>:"🗑️ Excluir Definitivamente"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {editClient&&(<div className="modal-overlay"><div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:"28px",maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}><div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4}}>✏️ Editar Cliente</div><div style={{fontSize:12,color:"var(--gray-light)",marginBottom:20,background:"var(--gray-mid)",borderRadius:6,padding:"6px 10px",display:"inline-block"}}>{editClient.email||editClient.id.slice(0,16)+"…"}</div><div style={{display:"flex",flexDirection:"column",gap:13}}><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>NOME</label><input className="input-field" value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Nome do cliente"/></div><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>TELEFONE</label><input className="input-field" value={editPhone} onChange={e=>setEditPhone(e.target.value)} placeholder="(31) 99999-0000"/></div></div><div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>setEditClient(null)}>Cancelar</button><button className="btn-primary" onClick={handleSaveEdit} disabled={saving||!editName.trim()}>{saving?<><div className="spinner"/>Salvando...</>:"💾 Salvar"}</button></div></div></div>)}
+      {resetClient&&(<div className="modal-overlay"><div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:"28px",maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}><div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4}}>🔑 Redefinir Senha</div><div style={{background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.2)",borderRadius:8,padding:"10px 14px",fontSize:13,marginBottom:18,lineHeight:1.7}}>💡 Será enviado um <strong>link de redefinição</strong> por e-mail.</div><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>E-MAIL DO CLIENTE</label><input className="input-field" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="email@cliente.com"/></div><div style={{display:"flex",gap:10,marginTop:20,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>setResetClient(null)}>Cancelar</button><button className="btn-primary" onClick={handleResetPassword} disabled={saving||!resetEmail.trim()}>{saving?<><div className="spinner"/>Enviando...</>:"📧 Enviar Link"}</button></div></div></div>)}
+      {deleteClient&&(<div className="modal-overlay"><div style={{background:"var(--gray-dark)",border:"1px solid rgba(200,16,46,.4)",borderRadius:14,padding:"28px",maxWidth:440,width:"90%",animation:"fadeIn .25s ease"}}><div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4,color:"#ef5350"}}>⚠️ Excluir Cliente</div><div style={{fontSize:13,color:"var(--gray-light)",marginBottom:16}}>Esta ação é <strong style={{color:"var(--white)"}}>permanente e irreversível</strong>.</div><div style={{background:"rgba(200,16,46,.08)",border:"1px solid rgba(200,16,46,.2)",borderRadius:8,padding:"12px 14px",marginBottom:16}}><div style={{fontSize:14,fontWeight:600}}>{displayName(deleteClient)}</div>{deleteClient.email&&<div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>{deleteClient.email}</div>}<div style={{fontSize:12,color:"var(--gray-light)",marginTop:6}}>{orderCount(deleteClient)} pedido(s) — <strong style={{color:"var(--white)"}}>histórico mantido</strong>.</div></div><div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>DELETAR</code> para confirmar:</div><input className="input-field" value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="DELETAR" style={{borderColor:deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}}/><div style={{fontSize:12,color:"var(--gray-light)",marginTop:10,padding:"8px 10px",background:"rgba(255,255,255,.03)",borderRadius:6}}>ℹ️ Login permanece no Supabase — remova em Authentication → Users se necessário.</div><div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>{setDeleteClient(null);setDeleteConfirm("");}}>Cancelar</button><button style={{background:deleteConfirm==="DELETAR"?"#c62828":"var(--gray-mid)",color:"white",border:`1px solid ${deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}`,borderRadius:6,padding:"11px 22px",fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,cursor:deleteConfirm==="DELETAR"?"pointer":"not-allowed",opacity:deleteConfirm==="DELETAR"?1:0.5,display:"inline-flex",alignItems:"center",gap:8,transition:"all .2s"}} onClick={handleDelete} disabled={deleteConfirm!=="DELETAR"||saving}>{saving?<><div className="spinner"/>Excluindo...</>:"🗑️ Excluir Definitivamente"}</button></div></div></div>)}
       <div style={{marginBottom:22}}>
         <div className="barlow" style={{fontSize:32,fontWeight:800}}>Clientes</div>
         <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{clients.length} clientes cadastrados</p>
       </div>
       <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div className="table-row table-header" style={{gridTemplateColumns:"2fr 1fr 70px 110px",cursor:"default"}}>
-          <span>Cliente</span><span>Telefone</span><span>Pedidos</span><span></span>
-        </div>
+        <div className="table-row table-header" style={{gridTemplateColumns:"2fr 1fr 70px 110px",cursor:"default"}}><span>Cliente</span><span>Telefone</span><span>Pedidos</span><span></span></div>
         {clients.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--gray-light)"}}>Nenhum cliente cadastrado.</div>}
         {clients.map(c=>(
           <div key={c.id} className="table-row" style={{gridTemplateColumns:"2fr 1fr 70px 110px"}}>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               <div style={{width:36,height:36,borderRadius:"50%",background:"var(--yellow)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"var(--black)",fontSize:14,flexShrink:0}}>{displayInitial(c)}</div>
-              <div>
-                <div style={{fontWeight:500}}>{displayName(c)}</div>
-                <div style={{fontSize:12,color:"var(--gray-light)"}}>{c.email||"—"}</div>
-                {c.company_name&&<div style={{fontSize:11,color:"var(--yellow)",marginTop:2}}>🏢 {c.company_name}</div>}
-              </div>
+              <div><div style={{fontWeight:500}}>{displayName(c)}</div><div style={{fontSize:12,color:"var(--gray-light)"}}>{c.email||"—"}</div>{c.company_name&&<div style={{fontSize:11,color:"var(--yellow)",marginTop:2}}>🏢 {c.company_name}</div>}</div>
             </div>
             <div style={{fontSize:13,color:"var(--gray-light)"}}>{c.phone||"—"}</div>
             <div style={{fontSize:14,fontWeight:600,color:"var(--yellow)"}}>{orderCount(c)}</div>
@@ -1224,15 +1244,11 @@ export default function App() {
   const handleLogin=(u)=>setUser(u);
   const handleLogout=async()=>{ await supabase.auth.signOut();setUser(null);setOrders([]);setActiveTab("dashboard");setOrdersFilter("all"); };
 
-  // ── FIX: handleUpdateStatus agora grava step_history corretamente ──────────
   const handleUpdateStatus=async(orderId,newStatus,setCurrentOrder,currentHistory={})=>{
     const clearSub=newStatus!=="analise";
     const now=new Date().toISOString();
-    // Grava timestamp para o novo status (e para Aguardando se ainda não tinha)
     const newHistory={...currentHistory,[newStatus]:now};
-    const updateData=clearSub
-      ?{status:newStatus,sub_status:null,step_history:newHistory}
-      :{status:newStatus,step_history:newHistory};
+    const updateData=clearSub?{status:newStatus,sub_status:null,step_history:newHistory}:{status:newStatus,step_history:newHistory};
     await supabase.from("orders").update(updateData).eq("id",orderId);
     setOrders(prev=>prev.map(o=>o.id===orderId?{...o,status:newStatus,sub_status:clearSub?null:o.sub_status,step_history:newHistory}:o));
     if(setCurrentOrder) setCurrentOrder(prev=>({...prev,status:newStatus,sub_status:clearSub?null:prev.sub_status,step_history:newHistory}));
@@ -1243,11 +1259,7 @@ export default function App() {
 
   const renderContent=()=>{
     if(activeTab==="order-detail"&&selectedOrder) return <OrderDetail order={selectedOrder} user={user} onBack={()=>setActiveTab("orders")} onUpdateStatus={handleUpdateStatus}/>;
-
-    // ── FIX POPUP: não mostra Loading quando está na tela de novo pedido ──
-    // Isso evita que o popup suma quando o Realtime dispara loadOrders
     if(ordersLoading && activeTab!=="new-order") return <Loading text="Carregando pedidos..."/>;
-
     if(user.role==="admin"){
       if(activeTab==="dashboard") return <AdminDashboard orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} setOrdersFilter={setOrdersFilter}/>;
       if(activeTab==="orders") return <OrderList user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} initialFilter={ordersFilter}/>;
