@@ -988,72 +988,70 @@ export default function App() {
     };
   }, [user, resetInactivity, startHeartbeat]);
 
-  // Auth state
+  // Auth state — lê localStorage primeiro para carregamento instantâneo
   useEffect(()=>{
     let authTimeout;
 
     const buildUser = async (session) => {
       if (!session?.user) return null;
       try {
-        // Timeout de 5 segundos para buscar perfil
-        const profilePromise = supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
-        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({data: null}), 5000));
-        const {data: profile} = await Promise.race([profilePromise, timeoutPromise]);
-
+        const {data: profile} = await supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
         if (profile) return {...session.user, ...profile};
-
-        // Perfil não existe — cria automaticamente
-        const newProfile = {
-          id: session.user.id,
-          name: session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Usuário",
-          phone: session.user.user_metadata?.phone || "",
-          role: "client"
-        };
+        const newProfile = { id: session.user.id, name: session.user.email?.split("@")[0] || "Usuário", phone: "", role: "client" };
         await supabase.from("profiles").upsert(newProfile, {onConflict:"id"});
         return {...session.user, ...newProfile};
       } catch(e) {
-        // Se tudo falhar, usa dados básicos e não trava
-        return {
-          ...session.user,
-          name: session.user.email?.split("@")[0] || "Usuário",
-          role: "client"
-        };
+        return { ...session.user, name: session.user.email?.split("@")[0] || "Usuário", role: "client" };
       }
     };
 
-    // Timeout geral de 8 segundos — se não carregar, vai para login
-    authTimeout = setTimeout(() => {
-      setAuthLoading(false);
-    }, 8000);
+    // FAST PATH — lê localStorage direto, sem esperar rede
+    // Evita o "Verificando sessão..." infinito no F5
+    try {
+      const projectRef = import.meta.env.VITE_SUPABASE_URL?.match(/\/\/([^.]+)\./)?.[1];
+      const key = `sb-${projectRef}-auth-token`;
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const stored = JSON.parse(raw);
+        const exp = stored?.expires_at || stored?.user?.exp;
+        const valid = exp && (exp * 1000) > Date.now();
+        if (valid && stored?.user) {
+          // Sessão válida no cache — mostra app imediatamente
+          setUser({
+            ...stored.user,
+            name: stored.user.user_metadata?.name || stored.user.email?.split("@")[0] || "Usuário",
+            role: "client"
+          });
+          setAuthLoading(false);
+          // Busca perfil completo em background
+          supabase.from("profiles").select("*").eq("id", stored.user.id).maybeSingle().then(({data: profile}) => {
+            if (profile) setUser(prev => prev ? {...prev, ...profile} : prev);
+          }).catch(()=>{});
+          return;
+        }
+      }
+    } catch(e) {}
+
+    // SLOW PATH — sem cache válido, busca na rede
+    authTimeout = setTimeout(() => { setAuthLoading(false); }, 8000);
 
     supabase.auth.getSession().then(async({data:{session}})=>{
       clearTimeout(authTimeout);
-      if (session) {
-        const u = await buildUser(session);
-        if (u) setUser(u);
-      }
+      if (session) { const u = await buildUser(session); if (u) setUser(u); }
       setAuthLoading(false);
-    }).catch(() => {
-      clearTimeout(authTimeout);
-      setAuthLoading(false);
-    });
+    }).catch(() => { clearTimeout(authTimeout); setAuthLoading(false); });
 
     const {data:{subscription}} = supabase.auth.onAuthStateChange(async(event, session)=>{
       if (event === "SIGNED_IN" && session) {
-        const u = await buildUser(session);
-        if (u) setUser(u);
+        const u = await buildUser(session); if (u) setUser(u);
       } else if (event === "SIGNED_OUT") {
         setUser(null);
       } else if (event === "TOKEN_REFRESHED" && session) {
-        // Token renovado — atualiza silenciosamente
         setUser(prev => prev ? {...prev, ...session.user} : prev);
       }
     });
 
-    return () => {
-      clearTimeout(authTimeout);
-      subscription.unsubscribe();
-    };
+    return () => { clearTimeout(authTimeout); subscription.unsubscribe(); };
   },[]);
 
   // Load orders
