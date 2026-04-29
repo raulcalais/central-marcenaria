@@ -48,6 +48,9 @@ const FontLoader = () => (
     .btn-ghost:hover { border-color:var(--gray-light); color:var(--white); }
     .btn-green { background:var(--green); color:white; border:none; border-radius:6px; padding:10px 20px; font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:700; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:6px; }
     .btn-green:hover { background:var(--green-light); }
+    .btn-danger { background:#b71c1c; color:white; border:none; border-radius:6px; padding:10px 20px; font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:700; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:6px; }
+    .btn-danger:hover { background:#c62828; }
+    .btn-danger:disabled { opacity:0.5; cursor:not-allowed; }
     .card { background:var(--gray-dark); border:1px solid var(--gray); border-radius:12px; padding:20px; }
     .input-field { background:var(--gray-mid); border:1.5px solid var(--gray); border-radius:8px; color:var(--white); padding:12px 16px; font-family:'DM Sans',sans-serif; font-size:14px; width:100%; transition:border-color .2s; outline:none; }
     .input-field:focus { border-color:var(--yellow); }
@@ -99,15 +102,26 @@ const Highlight = ({ text, term }) => {
   return <>{text.slice(0,idx)}<mark className="highlight">{text.slice(idx,idx+term.trim().length)}</mark>{text.slice(idx+term.trim().length)}</>;
 };
 
+// Extrai o caminho do arquivo a partir da URL pública do Supabase Storage
+const extractStoragePath = (url) => {
+  try {
+    const marker = "/order-files/";
+    const idx = url.indexOf(marker);
+    if (idx === -1) return null;
+    return url.slice(idx + marker.length);
+  } catch { return null; }
+};
+
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  aguardando:  { label:"Aguardando Análise", color:"gray",   icon:"⏳", step:0 },
-  analise:     { label:"Em Análise",         color:"blue",   icon:"🔍", step:1 },
-  corte:       { label:"Em Corte",           color:"orange", icon:"🪚", step:2 },
-  filetamento: { label:"Filetamento",        color:"orange", icon:"📐", step:3 },
-  pronto:      { label:"Pronto p/ Retirada", color:"green",  icon:"✅", step:4 },
-  entregue:    { label:"Entregue",           color:"green",  icon:"🚚", step:5 },
+  aguardando:  { label:"Aguardando Análise",   color:"gray",   icon:"⏳", step:0 },
+  analise:     { label:"Em Análise",           color:"blue",   icon:"🔍", step:1 },
+  corte:       { label:"Em Corte",             color:"orange", icon:"🪚", step:2 },
+  filetamento: { label:"Filetamento",          color:"orange", icon:"📐", step:3 },
+  pronto:      { label:"Pronto p/ Retirada",   color:"green",  icon:"✅", step:4 },
+  entregue:    { label:"Entregue",             color:"green",  icon:"🚚", step:5 },
 };
+
 const STEPS = [
   { key:"aguardando",  label:"Aguardando", icon:"📋" },
   { key:"analise",     label:"Análise",    icon:"🔍" },
@@ -115,25 +129,26 @@ const STEPS = [
   { key:"filetamento", label:"Filetamento",icon:"📐" },
   { key:"pronto",      label:"Pronto!",    icon:"✅" },
 ];
-const NEXT_STATUS = { aguardando:"analise", analise:"corte", corte:"filetamento", filetamento:"pronto", pronto:"entregue" };
 
-// Status que NÃO aparecem na lista "Pedidos em Andamento" do cliente
+const NEXT_STATUS = { aguardando:"analise", analise:"corte", corte:"filetamento", filetamento:"pronto", pronto:"entregue" };
 const STATUSES_CONCLUIDOS = ["entregue"];
 
 // ─── ICONS ────────────────────────────────────────────────────────────────────
 const Icon = ({ name, size=18 }) => {
   const icons = {
-    home:     "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10",
-    orders:   "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-    send:     "M12 19l9 2-9-18-9 18 9-2zm0 0v-8",
-    logout:   "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
-    plus:     "M12 4v16m8-8H4",
-    arrow:    "M10 19l-7-7m0 0l7-7m-7 7h18",
-    users:    "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
-    building: "M3 21h18 M3 7l9-4 9 4 M4 11h16v10H4V11z M9 21v-6h6v6",
-    paperclip:"M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48",
-    search:   "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0",
-    x:        "M18 6L6 18 M6 6l12 12",
+    home:       "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10",
+    orders:     "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+    send:       "M12 19l9 2-9-18-9 18 9-2zm0 0v-8",
+    logout:     "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
+    plus:       "M12 4v16m8-8H4",
+    arrow:      "M10 19l-7-7m0 0l7-7m-7 7h18",
+    users:      "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
+    building:   "M3 21h18 M3 7l9-4 9 4 M4 11h16v10H4V11z M9 21v-6h6v6",
+    paperclip:  "M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48",
+    search:     "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0",
+    x:          "M18 6L6 18 M6 6l12 12",
+    trash:      "M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6",
+    vendor:     "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -303,11 +318,32 @@ const LoginPage = ({ onLogin }) => {
 // ─── LAYOUT ───────────────────────────────────────────────────────────────────
 const Layout = ({ user, activeTab, setActiveTab, onLogout, children }) => {
   const [collapsed,setCollapsed]=useState(false);
-  const isAdmin=user.role==="admin";
-  const sideW=collapsed?64:220;
-  const nav=isAdmin
-    ?[{key:"dashboard",icon:"home",label:"Dashboard"},{key:"orders",icon:"orders",label:"Todos os Pedidos"},{key:"users",icon:"users",label:"Clientes"},{key:"companies",icon:"building",label:"Empresas"}]
-    :[{key:"dashboard",icon:"home",label:"Dashboard"},{key:"new-order",icon:"plus",label:"Novo Pedido"},{key:"orders",icon:"orders",label:"Meus Pedidos"}];
+  const isAdmin   = user.role==="admin";
+  const isVendedor= user.role==="vendedor";
+  const sideW     = collapsed?64:220;
+
+  const nav = isAdmin
+    ? [
+        {key:"dashboard",  icon:"home",     label:"Dashboard"},
+        {key:"orders",     icon:"orders",   label:"Todos os Pedidos"},
+        {key:"users",      icon:"users",    label:"Clientes"},
+        {key:"vendedores", icon:"vendor",   label:"Vendedores"},
+        {key:"companies",  icon:"building", label:"Empresas"},
+      ]
+    : isVendedor
+    ? [
+        {key:"dashboard", icon:"home",   label:"Dashboard"},
+        {key:"orders",    icon:"orders", label:"Pedidos"},
+      ]
+    : [
+        {key:"dashboard", icon:"home",   label:"Dashboard"},
+        {key:"new-order", icon:"plus",   label:"Novo Pedido"},
+        {key:"orders",    icon:"orders", label:"Meus Pedidos"},
+      ];
+
+  const roleLabel = isAdmin ? "🔧 Admin" : isVendedor ? "🤝 Vendedor" : "👤 Cliente";
+  const roleColor = isAdmin ? "var(--green)" : isVendedor ? "var(--orange)" : "var(--yellow)";
+
   return (
     <div style={{display:"flex",minHeight:"100vh"}}>
       <div style={{width:sideW,background:"var(--gray-dark)",borderRight:"1px solid var(--gray-mid)",display:"flex",flexDirection:"column",flexShrink:0,position:"fixed",height:"100vh",left:0,top:0,transition:"width .25s ease",overflow:"hidden",zIndex:100}}>
@@ -318,12 +354,12 @@ const Layout = ({ user, activeTab, setActiveTab, onLogout, children }) => {
           </button>
         </div>
         <div style={{padding:"10px 12px",borderBottom:"1px solid var(--gray-mid)",display:"flex",alignItems:"center",gap:8,justifyContent:collapsed?"center":"flex-start"}}>
-          <div style={{width:30,height:30,borderRadius:"50%",background:isAdmin?"var(--green)":"var(--yellow)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:isAdmin?"white":"var(--black)",flexShrink:0}}>
+          <div style={{width:30,height:30,borderRadius:"50%",background:roleColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:isAdmin?"white":"var(--black)",flexShrink:0}}>
             {(user.name||user.email||"?").charAt(0).toUpperCase()}
           </div>
           {!collapsed && <div>
             <div style={{fontSize:12,fontWeight:600}}>{(user.name||user.email||"").split(" ")[0]}</div>
-            <div style={{fontSize:10,color:isAdmin?"var(--green-light)":"var(--gray-light)"}}>{isAdmin?"🔧 Admin":"👤 Cliente"}</div>
+            <div style={{fontSize:10,color:isAdmin?"var(--green-light)":isVendedor?"var(--orange)":"var(--gray-light)"}}>{roleLabel}</div>
           </div>}
         </div>
         <nav style={{padding:"10px 8px",flex:1,display:"flex",flexDirection:"column",gap:2}}>
@@ -351,9 +387,7 @@ const Layout = ({ user, activeTab, setActiveTab, onLogout, children }) => {
 // ─── CLIENT DASHBOARD ─────────────────────────────────────────────────────────
 const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
   const prontos = orders.filter(o=>o.status==="pronto").length;
-  // "Em andamento" = tudo que não é pronto nem entregue
-  const emAnd = orders.filter(o=>!["pronto","entregue"].includes(o.status)).length;
-  // Lista do dashboard: exclui entregue (pedidos encerrados saem da visão principal)
+  const emAnd   = orders.filter(o=>!["pronto","entregue"].includes(o.status)).length;
   const pedidosAtivos = orders.filter(o=>o.status!=="entregue");
   const stepIndex = (status) => STATUS_CONFIG[status]?.step ?? 0;
 
@@ -388,7 +422,6 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
           <div className="barlow" style={{fontSize:20,fontWeight:700}}>Pedidos em Andamento</div>
           <button className="btn-ghost" onClick={()=>setActiveTab("orders")} style={{fontSize:12}}>Ver todos</button>
         </div>
-        {/* FIX: exclui pedidos com status "entregue" desta lista */}
         {pedidosAtivos.length===0 ? (
           <div style={{textAlign:"center",padding:28,color:"var(--gray-light)"}}>
             <div style={{fontSize:36,marginBottom:10}}>📂</div>
@@ -601,7 +634,6 @@ const OrderList = ({ user, orders, setSelectedOrder, setActiveTab, initialFilter
   const [search,setSearch]=useState("");
   const isAdmin=user.role==="admin";
   useEffect(()=>{ setFilter(initialFilter); },[initialFilter]);
-
   const filtered = orders
     .filter(o=>filter==="all"||o.status===filter)
     .filter(o=>matchSearch(o,search));
@@ -653,7 +685,7 @@ const OrderList = ({ user, orders, setSelectedOrder, setActiveTab, initialFilter
 };
 
 // ─── ORDER DETAIL ─────────────────────────────────────────────────────────────
-const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
+const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) => {
   const [messages,setMessages]=useState([]);
   const [orderFiles,setOrderFiles]=useState([]);
   const [newMsg,setNewMsg]=useState("");
@@ -661,6 +693,11 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
   const [currentOrder,setCurrentOrder]=useState(order);
   const [preview,setPreview]=useState(null);
   const [uploading,setUploading]=useState(false);
+  // ── Delete pedido ──
+  const [showDeleteModal,setShowDeleteModal]=useState(false);
+  const [deleteConfirmText,setDeleteConfirmText]=useState("");
+  const [deleting,setDeleting]=useState(false);
+
   const chatRef=useRef();
   const attachRef=useRef();
   const isAdmin=user.role==="admin";
@@ -724,8 +761,41 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
     } catch(e){}
   };
 
+  // ── Entrega D: Delete com limpeza total ───────────────────────────────────
+  const handleDeleteOrder = async () => {
+    if (deleteConfirmText !== "EXCLUIR") return;
+    setDeleting(true);
+    try {
+      // 1. Buscar arquivos para deletar do Storage
+      const { data: files } = await supabase
+        .from("order_files")
+        .select("url")
+        .eq("order_id", currentOrder.id);
+
+      // 2. Deletar arquivos do Storage
+      if (files && files.length > 0) {
+        const paths = files
+          .map(f => extractStoragePath(f.url))
+          .filter(Boolean);
+        if (paths.length > 0) {
+          await supabase.storage.from("order-files").remove(paths);
+        }
+      }
+
+      // 3. Deletar o pedido (CASCADE apaga messages e order_files do banco)
+      await supabase.from("orders").delete().eq("id", currentOrder.id);
+
+      // 4. Voltar e recarregar lista
+      if (onDeleteSuccess) onDeleteSuccess();
+    } catch(err) {
+      console.error("Erro ao deletar pedido:", err);
+      setDeleting(false);
+    }
+  };
+
   return (
     <div>
+      {/* Modal de preview de arquivo */}
       {preview && (
         <div onClick={()=>setPreview(null)} style={{position:"fixed",top:0,left:0,width:"100vw",height:"100vh",background:"rgba(0,0,0,0.92)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}}>
           <div onClick={e=>e.stopPropagation()} style={{position:"relative",maxWidth:"90vw",maxHeight:"90vh"}}>
@@ -736,7 +806,47 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
           </div>
         </div>
       )}
-      <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:24}}>
+
+      {/* ── Modal de confirmação de exclusão ── */}
+      {showDeleteModal && (
+        <div className="modal-overlay" style={{zIndex:600}}>
+          <div style={{background:"var(--gray-dark)",border:"1px solid rgba(200,16,46,.4)",borderRadius:14,padding:28,maxWidth:440,width:"90%",animation:"fadeIn .25s ease"}}>
+            <div className="barlow" style={{fontSize:24,fontWeight:800,color:"#ef5350",marginBottom:4}}>⚠️ Excluir Pedido</div>
+            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:16}}>Esta ação é <strong style={{color:"var(--white)"}}>permanente e irreversível</strong>. Todos os arquivos, mensagens e registros serão deletados.</div>
+            <div style={{background:"rgba(200,16,46,.08)",border:"1px solid rgba(200,16,46,.2)",borderRadius:8,padding:"12px 14px",marginBottom:16}}>
+              <div style={{fontSize:14,fontWeight:600}}>{currentOrder.title}</div>
+              <div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>{currentOrder.display_id} · {currentOrder.client_name}</div>
+              <div style={{fontSize:12,color:"var(--gray-light)",marginTop:6}}>
+                📎 {orderFiles.length} arquivo(s) · 💬 {messages.length} mensagem(s) — <strong style={{color:"#ef5350"}}>tudo será deletado</strong>
+              </div>
+            </div>
+            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>
+              Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>EXCLUIR</code> para confirmar:
+            </div>
+            <input
+              className="input-field"
+              value={deleteConfirmText}
+              onChange={e=>setDeleteConfirmText(e.target.value)}
+              placeholder="EXCLUIR"
+              style={{borderColor:deleteConfirmText==="EXCLUIR"?"#ef5350":"var(--gray)"}}
+            />
+            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
+              <button className="btn-ghost" onClick={()=>{setShowDeleteModal(false);setDeleteConfirmText("");}}>Cancelar</button>
+              <button
+                className="btn-danger"
+                onClick={handleDeleteOrder}
+                disabled={deleteConfirmText!=="EXCLUIR"||deleting}
+                style={{opacity:deleteConfirmText==="EXCLUIR"?1:0.5,cursor:deleteConfirmText==="EXCLUIR"?"pointer":"not-allowed"}}
+              >
+                {deleting?<><div className="spinner"/>Excluindo...</>:"🗑️ Excluir Definitivamente"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cabeçalho */}
+      <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:24,flexWrap:"wrap"}}>
         <button className="btn-ghost" onClick={onBack} style={{padding:"8px 14px"}}><Icon name="arrow" size={14}/>Voltar</button>
         <div style={{flex:1}}>
           <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
@@ -745,12 +855,29 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
           </div>
           <div style={{fontSize:13,color:"var(--gray-light)",marginTop:2}}>{currentOrder.display_id} · {currentOrder.client_name} · {new Date(currentOrder.created_at).toLocaleDateString("pt-BR")}</div>
         </div>
-        {isAdmin&&NEXT_STATUS[currentOrder.status]&&<button className="btn-primary" onClick={handleAdvance}>▶ Avançar: {STATUS_CONFIG[NEXT_STATUS[currentOrder.status]]?.label}</button>}
+        {isAdmin && NEXT_STATUS[currentOrder.status] && (
+          <button className="btn-primary" onClick={handleAdvance}>▶ Avançar: {STATUS_CONFIG[NEXT_STATUS[currentOrder.status]]?.label}</button>
+        )}
+        {/* Botão de excluir — admin only */}
+        {isAdmin && (
+          <button
+            onClick={()=>setShowDeleteModal(true)}
+            title="Excluir pedido"
+            style={{background:"rgba(200,16,46,.1)",border:"1.5px solid rgba(200,16,46,.3)",borderRadius:6,color:"#ef5350",cursor:"pointer",padding:"9px 14px",display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:600,transition:"all .2s"}}
+            onMouseEnter={e=>{e.currentTarget.style.background="rgba(200,16,46,.2)";e.currentTarget.style.borderColor="#ef5350";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="rgba(200,16,46,.1)";e.currentTarget.style.borderColor="rgba(200,16,46,.3)";}}
+          >
+            <Icon name="trash" size={15}/>Excluir
+          </button>
+        )}
       </div>
+
+      {/* Progresso */}
       <div className="card" style={{marginBottom:20}}>
         <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:4}}>Progresso do Pedido</div>
         <StatusSteps currentStatus={currentOrder.status} stepHistory={currentOrder.step_history||{}} createdAt={currentOrder.created_at}/>
       </div>
+
       <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:20}}>
         <div style={{display:"flex",flexDirection:"column",gap:20}}>
           <div className="card">
@@ -799,6 +926,7 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
             <div style={{fontSize:11,color:"var(--gray-light)",marginTop:6,textAlign:"center"}}>📎 Use o clipe para enviar arquivos adicionais a qualquer momento</div>
           </div>
         </div>
+
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div className="card">
             <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:12}}>Detalhes</div>
@@ -965,8 +1093,10 @@ const CompaniesPage = () => {
   const [newPhone,setNewPhone]=useState("");
   const [creating,setCreating]=useState(false);
   const [copied,setCopied]=useState(null);
+
   const loadCompanies=async()=>{ const {data}=await supabase.from("companies").select("*").order("created_at",{ascending:false}); setCompanies(data||[]); };
   useEffect(()=>{ loadCompanies(); },[]);
+
   const handleCreate=async()=>{
     if (!newName.trim()) return; setCreating(true);
     let key,exists=true;
@@ -974,7 +1104,9 @@ const CompaniesPage = () => {
     await supabase.from("companies").insert({name:newName.trim(),phone:newPhone.trim()||null,access_key:key});
     setCreating(false);setShowCreate(false);setNewName("");setNewPhone("");loadCompanies();
   };
+
   const handleCopy=(key)=>{ navigator.clipboard?.writeText(key); setCopied(key); setTimeout(()=>setCopied(null),2500); };
+
   return (
     <div>
       {showCreate&&(<div className="modal-overlay"><div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}><div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:16}}>🏢 Cadastrar Empresa</div><div style={{display:"flex",flexDirection:"column",gap:13}}><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>NOME DA EMPRESA *</label><input className="input-field" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Ex: Calais Móveis Ltda."/></div><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>TELEFONE</label><input className="input-field" value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="(31) 99999-0000"/></div><div style={{background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.2)",borderRadius:8,padding:"10px 14px",fontSize:13,lineHeight:1.7}}>💡 Uma <strong>chave de 6 dígitos</strong> será gerada automaticamente.</div></div><div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>setShowCreate(false)}>Cancelar</button><button className="btn-primary" onClick={handleCreate} disabled={creating||!newName.trim()}>{creating?<><div className="spinner"/>Criando...</>:"🏢 Criar Empresa"}</button></div></div></div>)}
@@ -1030,6 +1162,7 @@ const UsersPage = ({ orders }) => {
   const [saving,setSaving]=useState(false);
   const [toast,setToast]=useState(null);
   const showToast=(msg,type="green")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),4000); };
+
   const loadClients=async()=>{
     const {data:cd}=await supabase.from("profiles").select("*").eq("role","client");
     const {data:coD}=await supabase.from("companies").select("id,name");
@@ -1037,30 +1170,36 @@ const UsersPage = ({ orders }) => {
     setClients((cd||[]).map(c=>({...c,company_name:c.company_id?(cMap[c.company_id]||null):null})));
   };
   useEffect(()=>{ loadClients(); },[]);
+
   const displayName=(c)=>c.name||c.email?.split("@")[0]||"—";
   const displayInitial=(c)=>(c.name||c.email||"?").charAt(0).toUpperCase();
   const orderCount=(c)=>orders.filter(o=>o.client_id===c.id).length;
   const handleEdit=(c)=>{ setEditClient(c);setEditName(c.name||"");setEditPhone(c.phone||""); };
+
   const handleSaveEdit=async()=>{
     if (!editName.trim()) return; setSaving(true);
     await supabase.from("profiles").update({name:editName.trim(),phone:editPhone.trim()}).eq("id",editClient.id);
     setSaving(false);setEditClient(null);showToast("Cliente atualizado!");loadClients();
   };
+
   const handleDelete=async()=>{
     if (deleteConfirm!=="DELETAR") return; setSaving(true);
     await supabase.from("orders").update({client_id:null}).eq("client_id",deleteClient.id);
     await supabase.from("profiles").delete().eq("id",deleteClient.id);
     setSaving(false);setDeleteClient(null);setDeleteConfirm("");showToast("Cliente excluído.","red");loadClients();
   };
+
   const handleResetPassword=async()=>{
     if (!resetEmail.trim()) return; setSaving(true);
     const {error}=await supabase.auth.resetPasswordForEmail(resetEmail.trim(),{redirectTo:window.location.origin});
     setSaving(false);setResetClient(null);
     if(error) showToast("Erro: "+error.message,"red"); else showToast(`Link enviado para ${resetEmail}!`);
   };
+
   const btnAction=(onClick,title,emoji,danger=false)=>(
     <button title={title} onClick={onClick} style={{background:"var(--gray-mid)",border:"1px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"6px 9px",fontSize:15,transition:"all .2s",lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.color=danger?"#ef5350":"var(--white)"} onMouseLeave={e=>e.currentTarget.style.color="var(--gray-light)"}>{emoji}</button>
   );
+
   return (
     <div>
       {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:600,background:toast.type==="red"?"#b71c1c":"#1b5e20",border:`1px solid ${toast.type==="red"?"#ef5350":"#4caf72"}`,borderRadius:10,padding:"12px 20px",color:"white",fontSize:14,fontWeight:500,animation:"fadeIn .3s ease"}}>{toast.type==="red"?"🗑️":"✅"} {toast.msg}</div>}
@@ -1090,6 +1229,203 @@ const UsersPage = ({ orders }) => {
           </div>
         ))}
       </div>
+    </div>
+  );
+};
+
+// ─── VENDEDORES PAGE ──────────────────────────────────────────────────────────
+const VendedoresPage = () => {
+  const [vendedores,setVendedores]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [showCreate,setShowCreate]=useState(false);
+  const [newName,setNewName]=useState("");
+  const [newEmail,setNewEmail]=useState("");
+  const [newPassword,setNewPassword]=useState("");
+  const [newPhone,setNewPhone]=useState("");
+  const [creating,setCreating]=useState(false);
+  const [deleteVendedor,setDeleteVendedor]=useState(null);
+  const [deleteConfirm,setDeleteConfirm]=useState("");
+  const [deleting,setDeleting]=useState(false);
+  const [toast,setToast]=useState(null);
+
+  const showToast=(msg,type="green")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),4000); };
+
+  const loadVendedores=async()=>{
+    setLoading(true);
+    const {data}=await supabase.from("profiles").select("*").eq("role","vendedor").order("created_at",{ascending:false});
+    setVendedores(data||[]);
+    setLoading(false);
+  };
+
+  useEffect(()=>{ loadVendedores(); },[]);
+
+  const handleCreate=async()=>{
+    if (!newName.trim()||!newEmail.trim()||!newPassword.trim()) return;
+    setCreating(true);
+    try {
+      const {data:{session}}=await supabase.auth.getSession();
+      const supabaseUrl=import.meta.env.VITE_SUPABASE_URL;
+      const res=await fetch(`${supabaseUrl}/functions/v1/create-vendedor`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${session.access_token}`},
+        body:JSON.stringify({name:newName.trim(),email:newEmail.trim().toLowerCase(),password:newPassword,phone:newPhone.trim()})
+      });
+      const result=await res.json();
+      if (!res.ok) {
+        showToast("Erro: "+(result.error||"Falha ao criar vendedor."),"red");
+      } else {
+        showToast(`Vendedor ${newName} criado com sucesso!`);
+        setShowCreate(false);
+        setNewName("");setNewEmail("");setNewPassword("");setNewPhone("");
+        loadVendedores();
+      }
+    } catch(e) {
+      showToast("Erro de conexão com a função.","red");
+    }
+    setCreating(false);
+  };
+
+  const handleDelete=async()=>{
+    if (deleteConfirm!=="DELETAR"||!deleteVendedor) return;
+    setDeleting(true);
+    // Remove o perfil (login no Supabase Auth persiste — admin remove manualmente se necessário)
+    await supabase.from("profiles").delete().eq("id",deleteVendedor.id);
+    setDeleting(false);
+    setDeleteVendedor(null);
+    setDeleteConfirm("");
+    showToast("Vendedor removido.","red");
+    loadVendedores();
+  };
+
+  const displayInitial=(v)=>(v.name||v.email||"?").charAt(0).toUpperCase();
+
+  return (
+    <div>
+      {/* Toast */}
+      {toast&&(
+        <div style={{position:"fixed",top:20,right:20,zIndex:600,background:toast.type==="red"?"#b71c1c":"#1b5e20",border:`1px solid ${toast.type==="red"?"#ef5350":"#4caf72"}`,borderRadius:10,padding:"12px 20px",color:"white",fontSize:14,fontWeight:500,animation:"fadeIn .3s ease"}}>
+          {toast.type==="red"?"🗑️":"✅"} {toast.msg}
+        </div>
+      )}
+
+      {/* Modal criar vendedor */}
+      {showCreate&&(
+        <div className="modal-overlay">
+          <div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:440,width:"90%",animation:"fadeIn .25s ease"}}>
+            <div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4}}>🤝 Criar Vendedor</div>
+            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:18}}>O vendedor poderá fazer login e ver os pedidos da própria carteira.</div>
+            <div style={{display:"flex",flexDirection:"column",gap:13}}>
+              <div>
+                <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>NOME COMPLETO *</label>
+                <input className="input-field" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Ex: João Vendedor"/>
+              </div>
+              <div>
+                <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>E-MAIL *</label>
+                <input className="input-field" type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} placeholder="joao@central.com"/>
+              </div>
+              <div>
+                <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>SENHA INICIAL *</label>
+                <input className="input-field" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres"/>
+                <div style={{fontSize:11,color:"var(--gray-light)",marginTop:3}}>O vendedor pode alterar depois pelo e-mail de redefinição.</div>
+              </div>
+              <div>
+                <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>TELEFONE / WHATSAPP</label>
+                <input className="input-field" value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="(31) 99999-0000"/>
+              </div>
+            </div>
+            {!import.meta.env.VITE_SUPABASE_URL?.includes("supabase.co") && (
+              <div style={{background:"rgba(232,119,34,.1)",border:"1px solid rgba(232,119,34,.3)",borderRadius:8,padding:"10px 12px",fontSize:12,color:"var(--orange)",marginTop:14}}>
+                ⚠️ Verifique se a Edge Function <code>create-vendedor</code> está deployada no Supabase.
+              </div>
+            )}
+            <div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}>
+              <button className="btn-ghost" onClick={()=>setShowCreate(false)}>Cancelar</button>
+              <button className="btn-primary" onClick={handleCreate} disabled={creating||!newName.trim()||!newEmail.trim()||!newPassword.trim()}>
+                {creating?<><div className="spinner"/>Criando...</>:"🤝 Criar Vendedor"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal deletar vendedor */}
+      {deleteVendedor&&(
+        <div className="modal-overlay">
+          <div style={{background:"var(--gray-dark)",border:"1px solid rgba(200,16,46,.4)",borderRadius:14,padding:28,maxWidth:440,width:"90%",animation:"fadeIn .25s ease"}}>
+            <div className="barlow" style={{fontSize:22,fontWeight:800,color:"#ef5350",marginBottom:4}}>⚠️ Remover Vendedor</div>
+            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:16}}>O perfil será removido do sistema. O login no Supabase Auth persiste — remova manualmente em Authentication → Users se necessário.</div>
+            <div style={{background:"rgba(200,16,46,.08)",border:"1px solid rgba(200,16,46,.2)",borderRadius:8,padding:"12px 14px",marginBottom:16}}>
+              <div style={{fontSize:14,fontWeight:600}}>{deleteVendedor.name||deleteVendedor.email}</div>
+              {deleteVendedor.email&&<div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>{deleteVendedor.email}</div>}
+            </div>
+            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>
+              Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>DELETAR</code> para confirmar:
+            </div>
+            <input className="input-field" value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="DELETAR" style={{borderColor:deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}}/>
+            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
+              <button className="btn-ghost" onClick={()=>{setDeleteVendedor(null);setDeleteConfirm("");}}>Cancelar</button>
+              <button className="btn-danger" onClick={handleDelete} disabled={deleteConfirm!=="DELETAR"||deleting} style={{opacity:deleteConfirm==="DELETAR"?1:0.5,cursor:deleteConfirm==="DELETAR"?"pointer":"not-allowed"}}>
+                {deleting?<><div className="spinner"/>Removendo...</>:"🗑️ Remover"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cabeçalho */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
+        <div>
+          <div className="barlow" style={{fontSize:32,fontWeight:800}}>Vendedores</div>
+          <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{vendedores.length} vendedor(es) cadastrado(s)</p>
+        </div>
+        <button className="btn-primary" onClick={()=>setShowCreate(true)}><Icon name="plus" size={16}/>Novo Vendedor</button>
+      </div>
+
+      {/* Aviso sobre Edge Function */}
+      <div style={{background:"rgba(245,184,0,.06)",border:"1px solid rgba(245,184,0,.2)",borderRadius:10,padding:"12px 16px",marginBottom:20,fontSize:13,color:"var(--gray-light)",lineHeight:1.7}}>
+        <strong style={{color:"var(--yellow)"}}>ℹ️ Pré-requisito:</strong> a Edge Function <code style={{background:"var(--gray-mid)",padding:"1px 6px",borderRadius:4,fontSize:12}}>create-vendedor</code> precisa estar deployada no Supabase para criar novos vendedores.
+        {" "}<a href="https://supabase.com/docs/guides/functions" target="_blank" rel="noreferrer" style={{color:"var(--yellow)"}}>Ver docs →</a>
+      </div>
+
+      {/* Lista de vendedores */}
+      {loading ? <Loading text="Carregando vendedores..."/> : vendedores.length===0 ? (
+        <div className="card" style={{textAlign:"center",padding:48,color:"var(--gray-light)"}}>
+          <div style={{fontSize:44,marginBottom:12}}>🤝</div>
+          <div style={{fontSize:16,fontWeight:600,marginBottom:6}}>Nenhum vendedor ainda</div>
+          <div style={{fontSize:13,marginBottom:20}}>Crie o primeiro vendedor para começar a organizar a carteira de clientes.</div>
+          <button className="btn-primary" onClick={()=>setShowCreate(true)}><Icon name="plus" size={16}/>Criar Primeiro Vendedor</button>
+        </div>
+      ) : (
+        <div className="card" style={{padding:0,overflow:"hidden"}}>
+          <div className="table-row table-header" style={{gridTemplateColumns:"2fr 1fr 1fr 80px",cursor:"default"}}>
+            <span>Vendedor</span><span>Telefone</span><span>Cadastrado em</span><span></span>
+          </div>
+          {vendedores.map(v=>(
+            <div key={v.id} className="table-row" style={{gridTemplateColumns:"2fr 1fr 1fr 80px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:36,height:36,borderRadius:"50%",background:"var(--orange)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"white",fontSize:14,flexShrink:0}}>
+                  {displayInitial(v)}
+                </div>
+                <div>
+                  <div style={{fontWeight:500}}>{v.name||"—"}</div>
+                  <div style={{fontSize:12,color:"var(--gray-light)"}}>{v.email||"—"}</div>
+                </div>
+              </div>
+              <div style={{fontSize:13,color:"var(--gray-light)"}}>{v.phone||"—"}</div>
+              <div style={{fontSize:13,color:"var(--gray-light)"}}>{new Date(v.created_at).toLocaleDateString("pt-BR")}</div>
+              <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+                <button
+                  title="Remover vendedor"
+                  onClick={()=>setDeleteVendedor(v)}
+                  style={{background:"var(--gray-mid)",border:"1px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"6px 9px",fontSize:15,transition:"all .2s",lineHeight:1}}
+                  onMouseEnter={e=>e.currentTarget.style.color="#ef5350"}
+                  onMouseLeave={e=>e.currentTarget.style.color="var(--gray-light)"}
+                >🗑️</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -1169,7 +1505,13 @@ export default function App() {
     setOrdersLoading(true);
     try {
       let query=supabase.from("orders").select("*").order("created_at",{ascending:false});
-      if(user.role!=="admin") {
+      if (user.role==="admin") {
+        // admin vê tudo — sem filtro
+      } else if (user.role==="vendedor") {
+        // vendedor vê só os pedidos da própria carteira
+        query=query.eq("vendedor_id",user.id);
+      } else {
+        // client
         if(user.company_id) query=query.or(`client_id.eq.${user.id},company_id.eq.${user.company_id}`);
         else query=query.eq("client_id",user.id);
       }
@@ -1214,17 +1556,37 @@ export default function App() {
     if(setCurrentOrder) setCurrentOrder(prev=>({...prev,status:newStatus,sub_status:clearSub?null:prev.sub_status,step_history:newHistory}));
   };
 
+  // ── Entrega D: chamada pelo OrderDetail após limpeza bem-sucedida ─────────
+  const handleDeleteSuccess=useCallback(()=>{
+    loadOrders();
+    setActiveTab("orders");
+    setSelectedOrder(null);
+  },[loadOrders]);
+
   if(authLoading) return <><FontLoader/><Loading text="Verificando sessão..."/></>;
   if(!user) return <><FontLoader/><LoginPage onLogin={handleLogin}/></>;
 
   const renderContent=()=>{
-    if(activeTab==="order-detail"&&selectedOrder) return <OrderDetail order={selectedOrder} user={user} onBack={()=>setActiveTab("orders")} onUpdateStatus={handleUpdateStatus}/>;
+    if(activeTab==="order-detail"&&selectedOrder) return (
+      <OrderDetail
+        order={selectedOrder}
+        user={user}
+        onBack={()=>setActiveTab("orders")}
+        onUpdateStatus={handleUpdateStatus}
+        onDeleteSuccess={handleDeleteSuccess}
+      />
+    );
     if(ordersLoading && activeTab!=="new-order") return <Loading text="Carregando pedidos..."/>;
+
     if(user.role==="admin"){
       if(activeTab==="dashboard") return <AdminDashboard orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} setOrdersFilter={setOrdersFilter}/>;
       if(activeTab==="orders") return <OrderList user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} initialFilter={ordersFilter}/>;
       if(activeTab==="users") return <UsersPage orders={orders}/>;
+      if(activeTab==="vendedores") return <VendedoresPage/>;
       if(activeTab==="companies") return <CompaniesPage/>;
+    } else if(user.role==="vendedor"){
+      if(activeTab==="dashboard") return <AdminDashboard orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} setOrdersFilter={setOrdersFilter}/>;
+      if(activeTab==="orders") return <OrderList user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} initialFilter="all"/>;
     } else {
       if(activeTab==="dashboard") return <ClientDashboard user={user} orders={orders} setActiveTab={setActiveTab} setSelectedOrder={setSelectedOrder}/>;
       if(activeTab==="new-order") return <NewOrder user={user} onSubmit={()=>{loadOrders();setActiveTab("orders");}}/>;
