@@ -99,6 +99,7 @@ const Icon = ({ name, size = 18 }) => {
     plus:    "M12 4v16m8-8H4",
     arrow:   "M10 19l-7-7m0 0l7-7m-7 7h18",
     users:   "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
+    building: "M3 21h18 M3 7l9-4 9 4 M4 11h16v10H4V11z M9 21v-6h6v6",
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -107,9 +108,16 @@ const Icon = ({ name, size = 18 }) => {
   );
 };
 
-const StatusBadge = ({ status }) => {
+const StatusBadge = ({ status, subStatus }) => {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.aguardando;
-  return <span className={`badge badge-${cfg.color}`}>{cfg.icon} {cfg.label}</span>;
+  return (
+    <span style={{ display:"inline-flex",flexDirection:"column",gap:3,alignItems:"flex-start" }}>
+      <StatusBadge status={o.status} subStatus={o.sub_status}/>
+      {subStatus === "aguardando_chapa" && (
+        <span className="badge badge-orange" style={{ fontSize:11,padding:"3px 8px" }}>🧱 Aguard. Chapa</span>
+      )}
+    </span>
+  );
 };
 
 // ─── STATUS STEPS ─────────────────────────────────────────────────────────────
@@ -172,6 +180,7 @@ const LoginPage = ({ onLogin }) => {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [accessKey, setAccessKey] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -198,9 +207,16 @@ const LoginPage = ({ onLogin }) => {
     setLoading(true);
     const { data, error: err } = await supabase.auth.signUp({ email, password });
     if (err) { setError(err.message); setLoading(false); return; }
-    // upsert: o trigger já cria o perfil (sem nome); aqui sobrescrevemos com os dados do cadastro
-    await supabase.from("profiles").upsert({ id: data.user.id, name, phone, role: "client", email }, { onConflict: "id" });
-    onLogin({ ...data.user, name, phone, role: "client", email });
+    // valida chave de empresa se fornecida
+    let company_id = null;
+    if (accessKey.trim()) {
+      const { data: comp } = await supabase.from("companies").select("id").eq("access_key", accessKey.trim()).maybeSingle();
+      if (!comp) { setError("Chave de empresa inválida. Verifique com seu gestor."); setLoading(false); return; }
+      company_id = comp.id;
+    }
+    // upsert: o trigger já cria o perfil sem nome; aqui sobrescrevemos com os dados do cadastro
+    await supabase.from("profiles").upsert({ id: data.user.id, name, phone, role: "client", email, company_id }, { onConflict: "id" });
+    onLogin({ ...data.user, name, phone, role: "client", email, company_id });
     setLoading(false);
   };
 
@@ -254,6 +270,11 @@ const LoginPage = ({ onLogin }) => {
                   <label style={{ fontSize:12,color:"var(--gray-light)",display:"block",marginBottom:5 }}>TELEFONE / WHATSAPP</label>
                   <input className="input-field" placeholder="(31) 99999-0000" value={phone} onChange={e=>setPhone(e.target.value)} />
                 </div>
+                <div>
+                  <label style={{ fontSize:12,color:"var(--gray-light)",display:"block",marginBottom:5 }}>CHAVE DA EMPRESA <span style={{fontSize:10,color:"var(--gray-light)"}}>· opcional</span></label>
+                  <input className="input-field" placeholder="Ex: 123456" value={accessKey} onChange={e=>setAccessKey(e.target.value)} maxLength={8}/>
+                  <div style={{fontSize:11,color:"var(--gray-light)",marginTop:3}}>Solicite ao gestor da sua empresa se houver uma conta cadastrada.</div>
+                </div>
               </>}
               <div>
                 <label style={{ fontSize:12,color:"var(--gray-light)",display:"block",marginBottom:5 }}>E-MAIL</label>
@@ -286,7 +307,7 @@ const Layout = ({ user, activeTab, setActiveTab, onLogout, children }) => {
   const isAdmin = user.role === "admin";
   const sideW = collapsed ? 64 : 220;
   const nav = isAdmin
-    ? [{ key:"dashboard",icon:"home",label:"Dashboard" },{ key:"orders",icon:"orders",label:"Todos os Pedidos" },{ key:"users",icon:"users",label:"Clientes" }]
+    ? [{ key:"dashboard",icon:"home",label:"Dashboard" },{ key:"orders",icon:"orders",label:"Todos os Pedidos" },{ key:"users",icon:"users",label:"Clientes" },{ key:"companies",icon:"building",label:"Empresas" }]
     : [{ key:"dashboard",icon:"home",label:"Dashboard" },{ key:"new-order",icon:"plus",label:"Novo Pedido" },{ key:"orders",icon:"orders",label:"Meus Pedidos" }];
 
   return (
@@ -402,7 +423,7 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
                   <span style={{ fontSize:12,color:"var(--gray-light)" }}>{o.display_id}</span>
                   {hasUnread && <span className="msg-dot" title="Nova mensagem no chat"/>}
                 </div>
-                <span className={`badge badge-${cfg.color}`}>{cfg.icon} {cfg.label}</span>
+                <StatusBadge status={o.status} subStatus={o.sub_status}/>
               </div>
               {/* ── FIX BUG 2: fontSize 9→12 nas labels das etapas ── */}
               <div style={{ display:"flex",alignItems:"flex-start",gap:2 }}>
@@ -654,7 +675,7 @@ const OrderList = ({ user, orders, setSelectedOrder, setActiveTab }) => {
               <div style={{ fontSize:12,color:"var(--gray-light)",marginTop:2 }}>{o.display_id} · {new Date(o.created_at).toLocaleDateString("pt-BR")}</div>
             </div>
             {isAdmin&&<div style={{ fontSize:13 }}>{o.client_name}</div>}
-            <StatusBadge status={o.status}/>
+            <StatusBadge status={o.status} subStatus={o.sub_status}/>
             <div style={{ color:"var(--yellow)",fontSize:18 }}>→</div>
           </div>
         ))}
@@ -708,14 +729,22 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
     setSending(false);
   };
 
+  const handleToggleChapa = async () => {
+    const newSub = currentOrder.sub_status === "aguardando_chapa" ? null : "aguardando_chapa";
+    try {
+      await supabase.from("orders").update({ sub_status: newSub }).eq("id", currentOrder.id);
+      setCurrentOrder(prev=>({...prev, sub_status: newSub}));
+    } catch(e){ console.error(e); }
+  };
+
   const handleAdvance = async () => {
     const next = NEXT_STATUS[currentOrder.status];
     if(!next) return;
     try {
       const now = new Date().toISOString();
       const newHistory = {...(currentOrder.step_history||{}), [next]: now};
-      await supabase.from("orders").update({status: next, step_history: newHistory}).eq("id", currentOrder.id);
-      setCurrentOrder(prev=>({...prev, status: next, step_history: newHistory}));
+      await supabase.from("orders").update({status: next, step_history: newHistory, sub_status: null}).eq("id", currentOrder.id);
+      setCurrentOrder(prev=>({...prev, status: next, step_history: newHistory, sub_status: null}));
       onUpdateStatus(currentOrder.id, next, ()=>{});
     } catch(e){ console.error(e); }
   };
@@ -744,7 +773,7 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
         <div style={{ flex:1 }}>
           <div style={{ display:"flex",alignItems:"center",gap:12,flexWrap:"wrap" }}>
             <div className="barlow" style={{ fontSize:26,fontWeight:800 }}>{currentOrder.title}</div>
-            <StatusBadge status={currentOrder.status}/>
+            <StatusBadge status={currentOrder.status} subStatus={currentOrder.sub_status}/>
           </div>
           <div style={{ fontSize:13,color:"var(--gray-light)",marginTop:2 }}>{currentOrder.display_id} · {currentOrder.client_name} · {new Date(currentOrder.created_at).toLocaleDateString("pt-BR")}</div>
         </div>
@@ -860,6 +889,13 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
                     {cfg.icon} {cfg.label}{currentOrder.status===key&&<span style={{ marginLeft:"auto",color:"var(--yellow)" }}>◉</span>}
                   </button>
                 ))}
+                {currentOrder.status === "analise" && (
+                  <button onClick={handleToggleChapa}
+                    style={{ padding:"10px 14px",borderRadius:8,border:`1.5px solid ${currentOrder.sub_status==="aguardando_chapa"?"var(--orange)":"var(--gray)"}`,background:currentOrder.sub_status==="aguardando_chapa"?"rgba(232,119,34,.12)":"transparent",color:currentOrder.sub_status==="aguardando_chapa"?"var(--orange)":"var(--gray-light)",fontSize:13,cursor:"pointer",textAlign:"left",fontFamily:"DM Sans,sans-serif",transition:"all .2s",display:"flex",alignItems:"center",gap:8,marginTop:4 }}>
+                    {currentOrder.sub_status==="aguardando_chapa" ? "✅ Chapa Recebida — Remover Aguardo" : "🧱 Colocar em Aguardo de Chapa"}
+                    {currentOrder.sub_status==="aguardando_chapa" && <span style={{ marginLeft:"auto",color:"var(--orange)" }}>◉</span>}
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -914,10 +950,128 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab }) => {
               <div style={{ fontSize:12,color:"var(--gray-light)",marginTop:2 }}>{o.display_id} · {o.client_name}</div>
             </div>
             <div style={{ fontSize:13,color:"var(--gray-light)" }}>{new Date(o.created_at).toLocaleDateString("pt-BR")}</div>
-            <StatusBadge status={o.status}/>
+            <StatusBadge status={o.status} subStatus={o.sub_status}/>
             <div style={{ color:"var(--yellow)",fontSize:18 }}>→</div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── COMPANIES PAGE (admin) ───────────────────────────────────────────────────
+const CompaniesPage = () => {
+  const [companies, setCompanies] = useState([]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [copied, setCopied] = useState(null);
+
+  const loadCompanies = async () => {
+    const { data } = await supabase.from("companies").select("*").order("created_at",{ascending:false});
+    setCompanies(data||[]);
+  };
+  useEffect(()=>{ loadCompanies(); },[]);
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    setCreating(true);
+    // Gera chave única de 6 dígitos
+    let key, exists = true;
+    while (exists) {
+      key = Math.floor(100000 + Math.random() * 900000).toString();
+      const { data } = await supabase.from("companies").select("id").eq("access_key", key).maybeSingle();
+      exists = !!data;
+    }
+    await supabase.from("companies").insert({ name: newName.trim(), phone: newPhone.trim()||null, access_key: key });
+    setCreating(false); setShowCreate(false); setNewName(""); setNewPhone("");
+    loadCompanies();
+  };
+
+  const handleCopy = (key) => {
+    navigator.clipboard?.writeText(key);
+    setCopied(key);
+    setTimeout(()=>setCopied(null), 2500);
+  };
+
+  return (
+    <div>
+      {showCreate && (
+        <div className="modal-overlay">
+          <div style={{ background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:420,width:"90%",animation:"fadeIn .25s ease" }}>
+            <div className="barlow" style={{ fontSize:22,fontWeight:800,marginBottom:16 }}>🏢 Cadastrar Empresa</div>
+            <div style={{ display:"flex",flexDirection:"column",gap:13 }}>
+              <div>
+                <label style={{ fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5 }}>NOME DA EMPRESA *</label>
+                <input className="input-field" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Ex: Calais Móveis Ltda."/>
+              </div>
+              <div>
+                <label style={{ fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5 }}>TELEFONE</label>
+                <input className="input-field" value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="(31) 99999-0000"/>
+              </div>
+              <div style={{ background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.2)",borderRadius:8,padding:"10px 14px",fontSize:13,lineHeight:1.7 }}>
+                💡 Uma <strong>chave de 6 dígitos</strong> será gerada automaticamente. Compartilhe com os funcionários para que se cadastrem vinculados à empresa.
+              </div>
+            </div>
+            <div style={{ display:"flex",gap:10,marginTop:22,justifyContent:"flex-end" }}>
+              <button className="btn-ghost" onClick={()=>setShowCreate(false)}>Cancelar</button>
+              <button className="btn-primary" onClick={handleCreate} disabled={creating||!newName.trim()}>
+                {creating?<><div className="spinner"/>Criando...</>:"🏢 Criar Empresa"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22 }}>
+        <div>
+          <div className="barlow" style={{ fontSize:32,fontWeight:800 }}>Empresas</div>
+          <p style={{ color:"var(--gray-light)",fontSize:14,marginTop:4 }}>{companies.length} empresa(s) cadastrada(s)</p>
+        </div>
+        <button className="btn-primary" onClick={()=>setShowCreate(true)}><Icon name="plus" size={16}/>Nova Empresa</button>
+      </div>
+
+      {companies.length===0 ? (
+        <div className="card" style={{ textAlign:"center",padding:40,color:"var(--gray-light)" }}>
+          <div style={{ fontSize:36,marginBottom:8 }}>🏢</div>
+          <div>Nenhuma empresa cadastrada ainda.</div>
+          <button className="btn-primary" style={{ marginTop:14 }} onClick={()=>setShowCreate(true)}>Cadastrar primeira empresa</button>
+        </div>
+      ) : companies.map(co=>(
+        <div key={co.id} className="card" style={{ marginBottom:14 }}>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:16 }}>
+            <div>
+              <div className="barlow" style={{ fontSize:20,fontWeight:700 }}>{co.name}</div>
+              {co.phone && <div style={{ fontSize:13,color:"var(--gray-light)",marginTop:2 }}>📞 {co.phone}</div>}
+              <div style={{ fontSize:12,color:"var(--gray-light)",marginTop:4 }}>Cadastrada em {new Date(co.created_at).toLocaleDateString("pt-BR")}</div>
+            </div>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontSize:11,color:"var(--gray-light)",marginBottom:6,textTransform:"uppercase",letterSpacing:.5 }}>Chave de Acesso</div>
+              <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                <code style={{ fontSize:28,fontWeight:900,color:"var(--yellow)",letterSpacing:6,fontFamily:"monospace" }}>{co.access_key}</code>
+                <button onClick={()=>handleCopy(co.access_key)}
+                  style={{ background:copied===co.access_key?"rgba(76,175,114,.15)":"var(--gray-mid)",border:`1px solid ${copied===co.access_key?"#4caf72":"var(--gray)"}`,borderRadius:6,color:copied===co.access_key?"#4caf72":"var(--gray-light)",cursor:"pointer",padding:"6px 12px",fontSize:12,transition:"all .2s",fontWeight:500 }}>
+                  {copied===co.access_key?"✅ Copiado!":"📋 Copiar"}
+                </button>
+              </div>
+              <div style={{ fontSize:11,color:"var(--gray-light)",marginTop:6 }}>
+                Funcionários usam esta chave no cadastro
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Instrução para funcionários */}
+      <div className="card" style={{ background:"rgba(26,77,46,.08)",border:"1px solid rgba(26,107,46,.2)",marginTop:8 }}>
+        <div className="barlow" style={{ fontSize:16,fontWeight:700,marginBottom:10,color:"#4caf72" }}>Como vincular funcionários</div>
+        <div style={{ fontSize:13,color:"var(--gray-light)",lineHeight:1.9 }}>
+          <div>1. Crie a empresa aqui e anote a <strong style={{color:"var(--white)"}}>chave de 6 dígitos</strong></div>
+          <div>2. O funcionário acessa o portal e clica em <strong style={{color:"var(--white)"}}>CADASTRAR</strong></div>
+          <div>3. Preenche nome, telefone, e-mail, senha e a <strong style={{color:"var(--white)"}}>Chave da Empresa</strong></div>
+          <div>4. Pronto — ele verá todos os pedidos da empresa e poderá criar novos</div>
+        </div>
       </div>
     </div>
   );
@@ -1169,7 +1323,7 @@ export default function App() {
     const buildUser = async (session) => {
       if (!session?.user) return null;
       try {
-        const {data: profile} = await supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
+        const {data: profile} = await supabase.from("profiles").select("*, companies(id,name,access_key)").eq("id", session.user.id).maybeSingle();
         if (profile) {
           // Sincroniza email no profile se ainda não tinha (usuários antigos)
           if (!profile.email && session.user.email) {
@@ -1180,10 +1334,12 @@ export default function App() {
             ...session.user,
             ...profile,
             name: profile.name || session.user.email?.split("@")[0] || "Usuário",
-            email: profile.email || session.user.email
+            email: profile.email || session.user.email,
+            company_id: profile.company_id || null,
+            company_name: profile.companies?.name || null
           };
         }
-        const newProfile = { id: session.user.id, name: session.user.email?.split("@")[0] || "Usuário", phone: "", role: "client", email: session.user.email || "" };
+        const newProfile = { id: session.user.id, name: session.user.email?.split("@")[0] || "Usuário", phone: "", role: "client", email: session.user.email || "", company_id: null };
         await supabase.from("profiles").upsert(newProfile, {onConflict:"id"});
         return {...session.user, ...newProfile};
       } catch(e) {
@@ -1200,8 +1356,8 @@ export default function App() {
         const valid = exp && (exp * 1000) > Date.now();
         if (valid && stored?.user) {
           setAuthLoading(false);
-          supabase.from("profiles").select("*").eq("id", stored.user.id).maybeSingle().then(({data: profile}) => {
-            setUser({ ...stored.user, name: profile?.name || stored.user.email?.split("@")[0] || "Usuário", phone: profile?.phone || "", role: profile?.role || "client", email: profile?.email || stored.user.email || "" });
+          supabase.from("profiles").select("*, companies(id,name)").eq("id", stored.user.id).maybeSingle().then(({data: profile}) => {
+            setUser({ ...stored.user, name: profile?.name || stored.user.email?.split("@")[0] || "Usuário", phone: profile?.phone || "", role: profile?.role || "client", email: profile?.email || stored.user.email || "", company_id: profile?.company_id || null, company_name: profile?.companies?.name || null });
           }).catch(()=>{
             setUser({ ...stored.user, name: stored.user.email?.split("@")[0] || "Usuário", role: "client" });
           });
@@ -1272,9 +1428,10 @@ export default function App() {
   const handleLogout=async()=>{ await supabase.auth.signOut(); setUser(null); setOrders([]); setActiveTab("dashboard"); };
 
   const handleUpdateStatus = async(orderId, newStatus, setCurrentOrder)=>{
-    await supabase.from("orders").update({status:newStatus}).eq("id",orderId);
-    setOrders(prev=>prev.map(o=>o.id===orderId?{...o,status:newStatus}:o));
-    if(setCurrentOrder) setCurrentOrder(prev=>({...prev,status:newStatus}));
+    const clearSub = newStatus !== "analise";
+    await supabase.from("orders").update({status:newStatus, sub_status: clearSub ? null : undefined}).eq("id",orderId);
+    setOrders(prev=>prev.map(o=>o.id===orderId?{...o,status:newStatus, sub_status: clearSub ? null : o.sub_status}:o));
+    if(setCurrentOrder) setCurrentOrder(prev=>({...prev,status:newStatus, sub_status: clearSub ? null : prev.sub_status}));
   };
 
   if(authLoading) return <><FontLoader/><Loading text="Verificando sessão..."/></>;
@@ -1289,6 +1446,7 @@ export default function App() {
       if(activeTab==="dashboard") return <AdminDashboard orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab}/>;
       if(activeTab==="orders") return <OrderList user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab}/>;
       if(activeTab==="users") return <UsersPage orders={orders}/>;
+      if(activeTab==="companies") return <CompaniesPage/>;
     } else {
       if(activeTab==="dashboard") return <ClientDashboard user={user} orders={orders} setActiveTab={setActiveTab} setSelectedOrder={setSelectedOrder}/>;
       if(activeTab==="new-order") return <NewOrder user={user} onSubmit={()=>{loadOrders();setActiveTab("orders");}}/>;
