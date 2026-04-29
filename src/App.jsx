@@ -198,7 +198,8 @@ const LoginPage = ({ onLogin }) => {
     setLoading(true);
     const { data, error: err } = await supabase.auth.signUp({ email, password });
     if (err) { setError(err.message); setLoading(false); return; }
-    await supabase.from("profiles").insert({ id: data.user.id, name, phone, role: "client" });
+    // upsert: o trigger já cria o perfil (sem nome); aqui sobrescrevemos com os dados do cadastro
+    await supabase.from("profiles").upsert({ id: data.user.id, name, phone, role: "client" }, { onConflict: "id" });
     onLogin({ ...data.user, name, phone, role: "client" });
     setLoading(false);
   };
@@ -814,6 +815,41 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
               </div>
             ))}
           </div>
+
+          {/* ── Histórico de etapas com datas ── */}
+          {Object.keys(currentOrder.step_history||{}).length > 0 && (() => {
+            const history = currentOrder.step_history || {};
+            const stepKeys = STEPS.map(s => s.key).filter(k => history[k]);
+            const firstTs = new Date(currentOrder.created_at);
+            const lastTs = stepKeys.length > 0 ? new Date(history[stepKeys[stepKeys.length - 1]]) : null;
+            const diasTotal = lastTs ? Math.ceil((lastTs - firstTs) / (1000*60*60*24)) : Math.ceil((new Date() - firstTs) / (1000*60*60*24));
+            const concluido = currentOrder.status === "pronto" || currentOrder.status === "entregue";
+            return (
+              <div className="card">
+                <div className="barlow" style={{ fontSize:16,fontWeight:700,marginBottom:12 }}>📅 Histórico de Etapas</div>
+                <div style={{ display:"flex",flexDirection:"column",gap:0 }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--gray-mid)",fontSize:12 }}>
+                    <span style={{ color:"var(--gray-light)" }}>📋 Abertura</span>
+                    <span style={{ fontWeight:500 }}>{new Date(currentOrder.created_at).toLocaleDateString("pt-BR")} {new Date(currentOrder.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</span>
+                  </div>
+                  {STEPS.filter(s => history[s.key]).map(s => (
+                    <div key={s.key} style={{ display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--gray-mid)",fontSize:12 }}>
+                      <span style={{ color:"var(--gray-light)" }}>{s.icon} {s.label}</span>
+                      <span style={{ fontWeight:500,color: s.key === currentOrder.status ? "var(--yellow)" : "inherit" }}>
+                        {new Date(history[s.key]).toLocaleDateString("pt-BR")} {new Date(history[s.key]).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop:12,padding:"10px 12px",borderRadius:8,background: concluido ? "rgba(76,175,114,.1)" : "rgba(245,184,0,.08)",border:`1px solid ${concluido?"rgba(76,175,114,.3)":"rgba(245,184,0,.2)"}`,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                  <span style={{ fontSize:12,color:"var(--gray-light)" }}>{concluido ? "⏱️ Tempo total" : "⏱️ Em aberto há"}</span>
+                  <span style={{ fontWeight:700,fontSize:14,color: concluido ? "#4caf72" : "var(--yellow)" }}>
+                    {diasTotal === 0 ? "menos de 1 dia" : `${diasTotal} dia${diasTotal > 1 ? "s" : ""}`}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
           {isAdmin&&(
             <div className="card">
               <div className="barlow" style={{ fontSize:16,fontWeight:700,marginBottom:12 }}>⚙️ Atualizar Status</div>
@@ -893,6 +929,10 @@ const UsersPage = ({ orders }) => {
   useEffect(()=>{
     supabase.from("profiles").select("*").eq("role","client").then(({data})=>setClients(data||[]));
   },[]);
+
+  const displayName = (c) => c.name || c.email?.split("@")[0] || "—";
+  const displayInitial = (c) => (c.name || c.email || "?").charAt(0).toUpperCase();
+
   return (
     <div>
       <div style={{ marginBottom:22 }}>
@@ -906,8 +946,11 @@ const UsersPage = ({ orders }) => {
         {clients.map(c=>(
           <div key={c.id} className="table-row" style={{ gridTemplateColumns:"2fr 1fr 80px" }}>
             <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-              <div style={{ width:36,height:36,borderRadius:"50%",background:"var(--yellow)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"var(--black)",fontSize:14,flexShrink:0 }}>{(c.name||"?").charAt(0)}</div>
-              <div><div style={{ fontWeight:500 }}>{c.name}</div><div style={{ fontSize:12,color:"var(--gray-light)" }}>{c.email}</div></div>
+              <div style={{ width:36,height:36,borderRadius:"50%",background:"var(--yellow)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"var(--black)",fontSize:14,flexShrink:0 }}>{displayInitial(c)}</div>
+              <div>
+                <div style={{ fontWeight:500 }}>{displayName(c)}</div>
+                <div style={{ fontSize:12,color:"var(--gray-light)" }}>{c.email || "—"}</div>
+              </div>
             </div>
             <div style={{ fontSize:13,color:"var(--gray-light)" }}>{c.phone||"—"}</div>
             <div style={{ fontSize:14,fontWeight:600,color:"var(--yellow)" }}>{orders.filter(o=>o.client_id===c.id).length}</div>
@@ -968,7 +1011,12 @@ export default function App() {
       if (!session?.user) return null;
       try {
         const {data: profile} = await supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
-        if (profile) return {...session.user, ...profile};
+        if (profile) return {
+          ...session.user,
+          ...profile,
+          // garante fallback se nome ficou null no trigger (cadastro sem metadados)
+          name: profile.name || session.user.email?.split("@")[0] || "Usuário"
+        };
         const newProfile = { id: session.user.id, name: session.user.email?.split("@")[0] || "Usuário", phone: "", role: "client" };
         await supabase.from("profiles").upsert(newProfile, {onConflict:"id"});
         return {...session.user, ...newProfile};
