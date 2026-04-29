@@ -199,8 +199,8 @@ const LoginPage = ({ onLogin }) => {
     const { data, error: err } = await supabase.auth.signUp({ email, password });
     if (err) { setError(err.message); setLoading(false); return; }
     // upsert: o trigger já cria o perfil (sem nome); aqui sobrescrevemos com os dados do cadastro
-    await supabase.from("profiles").upsert({ id: data.user.id, name, phone, role: "client" }, { onConflict: "id" });
-    onLogin({ ...data.user, name, phone, role: "client" });
+    await supabase.from("profiles").upsert({ id: data.user.id, name, phone, role: "client", email }, { onConflict: "id" });
+    onLogin({ ...data.user, name, phone, role: "client", email });
     setLoading(false);
   };
 
@@ -926,34 +926,193 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab }) => {
 // ─── USERS PAGE ───────────────────────────────────────────────────────────────
 const UsersPage = ({ orders }) => {
   const [clients, setClients] = useState([]);
-  useEffect(()=>{
+  const [editClient, setEditClient] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [deleteClient, setDeleteClient] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [resetClient, setResetClient] = useState(null);
+  const [resetEmail, setResetEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type="green") => {
+    setToast({msg, type});
+    setTimeout(()=>setToast(null), 4000);
+  };
+
+  const loadClients = () => {
     supabase.from("profiles").select("*").eq("role","client").then(({data})=>setClients(data||[]));
-  },[]);
+  };
+  useEffect(()=>{ loadClients(); },[]);
 
   const displayName = (c) => c.name || c.email?.split("@")[0] || "—";
   const displayInitial = (c) => (c.name || c.email || "?").charAt(0).toUpperCase();
+  const orderCount = (c) => orders.filter(o=>o.client_id===c.id).length;
+
+  const handleEdit = (c) => { setEditClient(c); setEditName(c.name||""); setEditPhone(c.phone||""); };
+
+  const handleSaveEdit = async () => {
+    if (!editName.trim()) return;
+    setSaving(true);
+    await supabase.from("profiles").update({ name: editName.trim(), phone: editPhone.trim() }).eq("id", editClient.id);
+    setSaving(false);
+    setEditClient(null);
+    showToast("Cliente atualizado com sucesso!");
+    loadClients();
+  };
+
+  const handleDelete = async () => {
+    if (deleteConfirm !== "DELETAR") return;
+    setSaving(true);
+    await supabase.from("orders").update({ client_id: null }).eq("client_id", deleteClient.id);
+    await supabase.from("profiles").delete().eq("id", deleteClient.id);
+    setSaving(false);
+    setDeleteClient(null);
+    setDeleteConfirm("");
+    showToast("Cliente excluído do sistema.", "red");
+    loadClients();
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetEmail.trim()) return;
+    setSaving(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo: window.location.origin });
+    setSaving(false);
+    setResetClient(null);
+    if (error) showToast("Erro ao enviar: " + error.message, "red");
+    else showToast(`Link enviado para ${resetEmail}!`);
+  };
+
+  const btnAction = (onClick, title, emoji, danger=false) => (
+    <button title={title} onClick={onClick}
+      style={{ background:"var(--gray-mid)",border:"1px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"6px 9px",fontSize:15,transition:"all .2s",lineHeight:1 }}
+      onMouseEnter={e=>e.currentTarget.style.color=danger?"#ef5350":"var(--white)"}
+      onMouseLeave={e=>e.currentTarget.style.color="var(--gray-light)"}>
+      {emoji}
+    </button>
+  );
 
   return (
     <div>
+      {/* ── Toast ── */}
+      {toast && (
+        <div style={{ position:"fixed",top:20,right:20,zIndex:600,background:toast.type==="red"?"#b71c1c":"#1b5e20",border:`1px solid ${toast.type==="red"?"#ef5350":"#4caf72"}`,borderRadius:10,padding:"12px 20px",color:"white",fontSize:14,fontWeight:500,boxShadow:"0 4px 20px rgba(0,0,0,.5)",animation:"fadeIn .3s ease" }}>
+          {toast.type==="red"?"🗑️":"✅"} {toast.msg}
+        </div>
+      )}
+
+      {/* ── Modal Editar ── */}
+      {editClient && (
+        <div className="modal-overlay">
+          <div style={{ background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:"28px",maxWidth:420,width:"90%",animation:"fadeIn .25s ease" }}>
+            <div className="barlow" style={{ fontSize:22,fontWeight:800,marginBottom:4 }}>✏️ Editar Cliente</div>
+            <div style={{ fontSize:12,color:"var(--gray-light)",marginBottom:20,background:"var(--gray-mid)",borderRadius:6,padding:"6px 10px",display:"inline-block" }}>{editClient.email||editClient.id.slice(0,16)+"…"}</div>
+            <div style={{ display:"flex",flexDirection:"column",gap:13 }}>
+              <div>
+                <label style={{ fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5 }}>NOME COMPLETO / EMPRESA</label>
+                <input className="input-field" value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Nome do cliente"/>
+              </div>
+              <div>
+                <label style={{ fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5 }}>TELEFONE / WHATSAPP</label>
+                <input className="input-field" value={editPhone} onChange={e=>setEditPhone(e.target.value)} placeholder="(31) 99999-0000"/>
+              </div>
+            </div>
+            <div style={{ display:"flex",gap:10,marginTop:22,justifyContent:"flex-end" }}>
+              <button className="btn-ghost" onClick={()=>setEditClient(null)}>Cancelar</button>
+              <button className="btn-primary" onClick={handleSaveEdit} disabled={saving||!editName.trim()}>
+                {saving?<><div className="spinner"/>Salvando...</>:"💾 Salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Reset Senha ── */}
+      {resetClient && (
+        <div className="modal-overlay">
+          <div style={{ background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:"28px",maxWidth:420,width:"90%",animation:"fadeIn .25s ease" }}>
+            <div className="barlow" style={{ fontSize:22,fontWeight:800,marginBottom:4 }}>🔑 Redefinir Senha</div>
+            <div style={{ background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.2)",borderRadius:8,padding:"10px 14px",fontSize:13,marginBottom:18,lineHeight:1.7 }}>
+              💡 Será enviado um <strong>link de redefinição</strong> por e-mail. O próprio cliente define a nova senha ao clicar no link.
+            </div>
+            <div>
+              <label style={{ fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5 }}>E-MAIL DO CLIENTE</label>
+              <input className="input-field" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="email@cliente.com"/>
+            </div>
+            <div style={{ fontSize:12,color:"var(--gray-light)",marginTop:10 }}>
+              ⚠️ O cliente precisa ter acesso ao e-mail cadastrado para receber o link.
+            </div>
+            <div style={{ display:"flex",gap:10,marginTop:20,justifyContent:"flex-end" }}>
+              <button className="btn-ghost" onClick={()=>setResetClient(null)}>Cancelar</button>
+              <button className="btn-primary" onClick={handleResetPassword} disabled={saving||!resetEmail.trim()}>
+                {saving?<><div className="spinner"/>Enviando...</>:"📧 Enviar Link"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Excluir ── */}
+      {deleteClient && (
+        <div className="modal-overlay">
+          <div style={{ background:"var(--gray-dark)",border:"1px solid rgba(200,16,46,.4)",borderRadius:14,padding:"28px",maxWidth:440,width:"90%",animation:"fadeIn .25s ease" }}>
+            <div className="barlow" style={{ fontSize:22,fontWeight:800,marginBottom:4,color:"#ef5350" }}>⚠️ Excluir Cliente</div>
+            <div style={{ fontSize:13,color:"var(--gray-light)",marginBottom:16 }}>Esta ação é <strong style={{color:"var(--white)"}}>permanente e irreversível</strong>.</div>
+            <div style={{ background:"rgba(200,16,46,.08)",border:"1px solid rgba(200,16,46,.2)",borderRadius:8,padding:"12px 14px",marginBottom:16 }}>
+              <div style={{ fontSize:14,fontWeight:600 }}>{displayName(deleteClient)}</div>
+              {deleteClient.email && <div style={{ fontSize:12,color:"var(--gray-light)",marginTop:2 }}>{deleteClient.email}</div>}
+              <div style={{ fontSize:12,color:"var(--gray-light)",marginTop:6 }}>
+                {orderCount(deleteClient)} pedido(s) vinculados — <strong style={{color:"var(--white)"}}>histórico de pedidos será mantido</strong>.
+              </div>
+            </div>
+            <div style={{ fontSize:13,color:"var(--gray-light)",marginBottom:8 }}>
+              Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>DELETAR</code> para confirmar:
+            </div>
+            <input className="input-field" value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="DELETAR"
+              style={{ borderColor: deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)" }}/>
+            <div style={{ fontSize:12,color:"var(--gray-light)",marginTop:10,padding:"8px 10px",background:"rgba(255,255,255,.03)",borderRadius:6,lineHeight:1.6 }}>
+              ℹ️ O acesso de login (e-mail/senha) permanece no Supabase. Para bloquear o login por completo, vá em <strong style={{color:"var(--white)"}}>Supabase → Authentication → Users</strong> e exclua manualmente.
+            </div>
+            <div style={{ display:"flex",gap:10,marginTop:18,justifyContent:"flex-end" }}>
+              <button className="btn-ghost" onClick={()=>{setDeleteClient(null);setDeleteConfirm("");}}>Cancelar</button>
+              <button style={{ background:deleteConfirm==="DELETAR"?"#c62828":"var(--gray-mid)",color:"white",border:`1px solid ${deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}`,borderRadius:6,padding:"11px 22px",fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,cursor:deleteConfirm==="DELETAR"?"pointer":"not-allowed",opacity:deleteConfirm==="DELETAR"?1:0.5,display:"inline-flex",alignItems:"center",gap:8,transition:"all .2s" }}
+                onClick={handleDelete} disabled={deleteConfirm!=="DELETAR"||saving}>
+                {saving?<><div className="spinner"/>Excluindo...</>:"🗑️ Excluir Definitivamente"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Lista ── */}
       <div style={{ marginBottom:22 }}>
         <div className="barlow" style={{ fontSize:32,fontWeight:800 }}>Clientes</div>
         <p style={{ color:"var(--gray-light)",fontSize:14,marginTop:4 }}>{clients.length} clientes cadastrados</p>
       </div>
       <div className="card" style={{ padding:0,overflow:"hidden" }}>
-        <div className="table-row table-header" style={{ gridTemplateColumns:"2fr 1fr 80px",cursor:"default" }}>
-          <span>Cliente</span><span>Telefone</span><span>Pedidos</span>
+        <div className="table-row table-header" style={{ gridTemplateColumns:"2fr 1fr 70px 110px",cursor:"default" }}>
+          <span>Cliente</span><span>Telefone</span><span>Pedidos</span><span></span>
         </div>
+        {clients.length===0 && (
+          <div style={{ textAlign:"center",padding:40,color:"var(--gray-light)" }}>Nenhum cliente cadastrado.</div>
+        )}
         {clients.map(c=>(
-          <div key={c.id} className="table-row" style={{ gridTemplateColumns:"2fr 1fr 80px" }}>
+          <div key={c.id} className="table-row" style={{ gridTemplateColumns:"2fr 1fr 70px 110px" }}>
             <div style={{ display:"flex",alignItems:"center",gap:12 }}>
               <div style={{ width:36,height:36,borderRadius:"50%",background:"var(--yellow)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"var(--black)",fontSize:14,flexShrink:0 }}>{displayInitial(c)}</div>
               <div>
                 <div style={{ fontWeight:500 }}>{displayName(c)}</div>
-                <div style={{ fontSize:12,color:"var(--gray-light)" }}>{c.email || "—"}</div>
+                <div style={{ fontSize:12,color:"var(--gray-light)" }}>{c.email||"—"}</div>
               </div>
             </div>
             <div style={{ fontSize:13,color:"var(--gray-light)" }}>{c.phone||"—"}</div>
-            <div style={{ fontSize:14,fontWeight:600,color:"var(--yellow)" }}>{orders.filter(o=>o.client_id===c.id).length}</div>
+            <div style={{ fontSize:14,fontWeight:600,color:"var(--yellow)" }}>{orderCount(c)}</div>
+            <div style={{ display:"flex",gap:6,justifyContent:"flex-end" }}>
+              {btnAction(()=>handleEdit(c), "Editar cliente", "✏️")}
+              {btnAction(()=>{setResetClient(c);setResetEmail(c.email||"");}, "Redefinir senha", "🔑")}
+              {btnAction(()=>setDeleteClient(c), "Excluir cliente", "🗑️", true)}
+            </div>
           </div>
         ))}
       </div>
@@ -1011,13 +1170,20 @@ export default function App() {
       if (!session?.user) return null;
       try {
         const {data: profile} = await supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
-        if (profile) return {
-          ...session.user,
-          ...profile,
-          // garante fallback se nome ficou null no trigger (cadastro sem metadados)
-          name: profile.name || session.user.email?.split("@")[0] || "Usuário"
-        };
-        const newProfile = { id: session.user.id, name: session.user.email?.split("@")[0] || "Usuário", phone: "", role: "client" };
+        if (profile) {
+          // Sincroniza email no profile se ainda não tinha (usuários antigos)
+          if (!profile.email && session.user.email) {
+            await supabase.from("profiles").update({ email: session.user.email }).eq("id", session.user.id);
+            profile.email = session.user.email;
+          }
+          return {
+            ...session.user,
+            ...profile,
+            name: profile.name || session.user.email?.split("@")[0] || "Usuário",
+            email: profile.email || session.user.email
+          };
+        }
+        const newProfile = { id: session.user.id, name: session.user.email?.split("@")[0] || "Usuário", phone: "", role: "client", email: session.user.email || "" };
         await supabase.from("profiles").upsert(newProfile, {onConflict:"id"});
         return {...session.user, ...newProfile};
       } catch(e) {
@@ -1035,7 +1201,7 @@ export default function App() {
         if (valid && stored?.user) {
           setAuthLoading(false);
           supabase.from("profiles").select("*").eq("id", stored.user.id).maybeSingle().then(({data: profile}) => {
-            setUser({ ...stored.user, name: profile?.name || stored.user.email?.split("@")[0] || "Usuário", phone: profile?.phone || "", role: profile?.role || "client" });
+            setUser({ ...stored.user, name: profile?.name || stored.user.email?.split("@")[0] || "Usuário", phone: profile?.phone || "", role: profile?.role || "client", email: profile?.email || stored.user.email || "" });
           }).catch(()=>{
             setUser({ ...stored.user, name: stored.user.email?.split("@")[0] || "Usuário", role: "client" });
           });
