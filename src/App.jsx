@@ -81,29 +81,22 @@ const FontLoader = () => (
   `}</style>
 );
 
-// ─── HELPER: busca em pedido por texto ────────────────────────────────────────
-// Extrai OT do título e busca em: título, cliente, OT
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 const matchSearch = (order, term) => {
   if (!term.trim()) return true;
   const q = term.toLowerCase().trim();
   const title = (order.title||"").toLowerCase();
   const client = (order.client_name||"").toLowerCase();
-  // Extrai número OT do título, ex: "[OT:1234]" → "1234"
   const otMatch = order.title?.match(/\[OT:([^\]]+)\]/i);
   const ot = otMatch ? otMatch[1].toLowerCase() : "";
   return title.includes(q) || client.includes(q) || ot.includes(q);
 };
 
-// Destaca o termo buscado no texto
 const Highlight = ({ text, term }) => {
   if (!term.trim()) return <>{text}</>;
   const idx = text.toLowerCase().indexOf(term.toLowerCase().trim());
   if (idx === -1) return <>{text}</>;
-  return <>
-    {text.slice(0,idx)}
-    <mark className="highlight">{text.slice(idx,idx+term.trim().length)}</mark>
-    {text.slice(idx+term.trim().length)}
-  </>;
+  return <>{text.slice(0,idx)}<mark className="highlight">{text.slice(idx,idx+term.trim().length)}</mark>{text.slice(idx+term.trim().length)}</>;
 };
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
@@ -123,6 +116,9 @@ const STEPS = [
   { key:"pronto",      label:"Pronto!",    icon:"✅" },
 ];
 const NEXT_STATUS = { aguardando:"analise", analise:"corte", corte:"filetamento", filetamento:"pronto", pronto:"entregue" };
+
+// Status que NÃO aparecem na lista "Pedidos em Andamento" do cliente
+const STATUSES_CONCLUIDOS = ["entregue"];
 
 // ─── ICONS ────────────────────────────────────────────────────────────────────
 const Icon = ({ name, size=18 }) => {
@@ -146,18 +142,12 @@ const Icon = ({ name, size=18 }) => {
   );
 };
 
-// ─── SEARCH INPUT component ───────────────────────────────────────────────────
 const SearchInput = ({ value, onChange, placeholder="Buscar por ambiente, cliente ou OT..." }) => (
   <div style={{position:"relative",flex:1}}>
     <div style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"var(--gray-light)",pointerEvents:"none",display:"flex"}}>
       <Icon name="search" size={15}/>
     </div>
-    <input
-      className="search-field"
-      placeholder={placeholder}
-      value={value}
-      onChange={e=>onChange(e.target.value)}
-    />
+    <input className="search-field" placeholder={placeholder} value={value} onChange={e=>onChange(e.target.value)}/>
     {value && (
       <button onClick={()=>onChange("")} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"var(--gray-light)",cursor:"pointer",display:"flex",padding:2}}>
         <Icon name="x" size={14}/>
@@ -360,9 +350,13 @@ const Layout = ({ user, activeTab, setActiveTab, onLogout, children }) => {
 
 // ─── CLIENT DASHBOARD ─────────────────────────────────────────────────────────
 const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
-  const prontos=orders.filter(o=>o.status==="pronto").length;
-  const emAnd=orders.filter(o=>!["pronto","entregue"].includes(o.status)).length;
-  const stepIndex=(status)=>STATUS_CONFIG[status]?.step??0;
+  const prontos = orders.filter(o=>o.status==="pronto").length;
+  // "Em andamento" = tudo que não é pronto nem entregue
+  const emAnd = orders.filter(o=>!["pronto","entregue"].includes(o.status)).length;
+  // Lista do dashboard: exclui entregue (pedidos encerrados saem da visão principal)
+  const pedidosAtivos = orders.filter(o=>o.status!=="entregue");
+  const stepIndex = (status) => STATUS_CONFIG[status]?.step ?? 0;
+
   return (
     <div>
       <div style={{marginBottom:20}}>
@@ -394,13 +388,14 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
           <div className="barlow" style={{fontSize:20,fontWeight:700}}>Pedidos em Andamento</div>
           <button className="btn-ghost" onClick={()=>setActiveTab("orders")} style={{fontSize:12}}>Ver todos</button>
         </div>
-        {orders.length===0 ? (
+        {/* FIX: exclui pedidos com status "entregue" desta lista */}
+        {pedidosAtivos.length===0 ? (
           <div style={{textAlign:"center",padding:28,color:"var(--gray-light)"}}>
             <div style={{fontSize:36,marginBottom:10}}>📂</div>
-            <div>Nenhum pedido ainda.</div>
+            <div>Nenhum pedido em andamento.</div>
             <button className="btn-primary" style={{marginTop:14}} onClick={()=>setActiveTab("new-order")}><Icon name="plus" size={16}/>Criar Primeiro Pedido</button>
           </div>
-        ) : orders.slice(0,5).map(o=>{
+        ) : pedidosAtivos.slice(0,5).map(o=>{
           const step=stepIndex(o.status);
           const hasUnread=(o.unread_count||0)>0;
           return (
@@ -600,15 +595,13 @@ const NewOrder = ({ user, onSubmit }) => {
   );
 };
 
-// ─── ORDER LIST ─── com busca integrada ───────────────────────────────────────
+// ─── ORDER LIST ───────────────────────────────────────────────────────────────
 const OrderList = ({ user, orders, setSelectedOrder, setActiveTab, initialFilter="all" }) => {
   const [filter,setFilter]=useState(initialFilter);
   const [search,setSearch]=useState("");
   const isAdmin=user.role==="admin";
-
   useEffect(()=>{ setFilter(initialFilter); },[initialFilter]);
 
-  // Aplica filtro de status E busca
   const filtered = orders
     .filter(o=>filter==="all"||o.status===filter)
     .filter(o=>matchSearch(o,search));
@@ -619,17 +612,14 @@ const OrderList = ({ user, orders, setSelectedOrder, setActiveTab, initialFilter
         <div className="barlow" style={{fontSize:32,fontWeight:800}}>{isAdmin?"Todos os Pedidos":"Meus Pedidos"}</div>
         <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{filtered.length} pedido(s){search?` para "${search}"`:""}</p>
       </div>
-
-      {/* Filtros de status + busca na mesma linha */}
       <div style={{display:"flex",gap:10,marginBottom:18,alignItems:"center",flexWrap:"wrap"}}>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {[["all","Todos"],["aguardando","Aguardando"],["analise","Análise"],["corte","Corte"],["filetamento","Filetamento"],["pronto","Pronto"]].map(([k,l])=>(
+          {[["all","Todos"],["aguardando","Aguardando"],["analise","Análise"],["corte","Corte"],["filetamento","Filetamento"],["pronto","Pronto"],["entregue","Entregue"]].map(([k,l])=>(
             <button key={k} onClick={()=>setFilter(k)} style={{padding:"7px 16px",borderRadius:20,border:`1.5px solid ${filter===k?"var(--yellow)":"var(--gray)"}`,background:filter===k?"rgba(245,184,0,.1)":"transparent",color:filter===k?"var(--yellow)":"var(--gray-light)",fontSize:13,cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .2s",whiteSpace:"nowrap"}}>{l}</button>
           ))}
         </div>
         <SearchInput value={search} onChange={setSearch}/>
       </div>
-
       <div className="card" style={{padding:0,overflow:"hidden"}}>
         <div className="table-row table-header" style={{gridTemplateColumns:isAdmin?"2fr 130px 150px 70px":"2fr 150px 70px",cursor:"default"}}>
           <span>Pedido</span>{isAdmin&&<span>Cliente</span>}<span>Status</span><span></span>
@@ -869,25 +859,20 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
   );
 };
 
-// ─── ADMIN DASHBOARD ─── com busca nos Pedidos Recentes ───────────────────────
+// ─── ADMIN DASHBOARD ──────────────────────────────────────────────────────────
 const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilter }) => {
   const [companies,setCompanies]=useState([]);
   const [dashSearch,setDashSearch]=useState("");
-
   useEffect(()=>{ supabase.from("companies").select("id,name").then(({data})=>setCompanies(data||[])); },[]);
   const compMap=Object.fromEntries(companies.map(c=>[c.id,c.name]));
-
   const stats={
     total:orders.length,
     aguardando:orders.filter(o=>o.status==="aguardando").length,
     prod:orders.filter(o=>["analise","corte","filetamento"].includes(o.status)).length,
     prontos:orders.filter(o=>o.status==="pronto").length,
   };
-
   const verAguardando=()=>{ setOrdersFilter("aguardando"); setActiveTab("orders"); };
-
-  // Pedidos filtrados pela busca do dashboard
-  const dashFiltered = orders.filter(o=>matchSearch(o,dashSearch));
+  const dashFiltered=orders.filter(o=>matchSearch(o,dashSearch));
 
   return (
     <div>
@@ -895,8 +880,6 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilte
         <div className="barlow" style={{fontSize:36,fontWeight:800}}>Painel <span style={{color:"var(--yellow)"}}>Central 4.0</span></div>
         <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>Visão geral de todos os pedidos.</p>
       </div>
-
-      {/* Cards de resumo */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:20}}>
         {[["Total",stats.total,"📦","var(--yellow)"],["Aguardando",stats.aguardando,"⏳","#64b5f6"],["Em Produção",stats.prod,"🪚","var(--orange)"],["Prontos",stats.prontos,"✅","#4caf72"]].map(([l,v,ic,c])=>(
           <div key={l} className="card" style={{borderTop:`3px solid ${c}`}}>
@@ -907,16 +890,12 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilte
           </div>
         ))}
       </div>
-
-      {/* Alerta aguardando */}
       {stats.aguardando>0&&(
         <div style={{background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.3)",borderRadius:12,padding:"14px 20px",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
           <div style={{fontWeight:600,color:"var(--yellow)",fontSize:15}}>⚠️ {stats.aguardando} pedido(s) aguardando análise</div>
           <button onClick={verAguardando} style={{background:"var(--yellow)",color:"var(--black)",border:"none",borderRadius:6,padding:"8px 18px",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Ver Aguardando →</button>
         </div>
       )}
-
-      {/* Pedidos Recentes */}
       <div className="card">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:12,flexWrap:"wrap"}}>
           <div className="barlow" style={{fontSize:20,fontWeight:700,flexShrink:0}}>Pedidos Recentes</div>
@@ -925,14 +904,11 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilte
             <button className="btn-ghost" style={{flexShrink:0,fontSize:13}} onClick={()=>{ setOrdersFilter("all"); setActiveTab("orders"); }}>Ver todos</button>
           </div>
         </div>
-
-        {/* Cabeçalho */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 160px 110px 160px 70px",padding:"8px 12px",borderBottom:"2px solid var(--gray-mid)"}}>
           {["Pedido","Empresa / Cliente","Abertura","Status",""].map((h,i)=>(
             <span key={i} style={{fontSize:11,color:"var(--gray-light)",fontWeight:600,textTransform:"uppercase",letterSpacing:.8,textAlign:i===2?"center":"left"}}>{h}</span>
           ))}
         </div>
-
         {dashFiltered.length===0 ? (
           <div style={{textAlign:"center",padding:32,color:"var(--gray-light)"}}>
             <div style={{fontSize:28,marginBottom:8}}>🔍</div>
@@ -970,7 +946,6 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilte
             </div>
           );
         })}
-
         {dashFiltered.length>10 && (
           <div style={{padding:"12px 16px",textAlign:"center",fontSize:13,color:"var(--gray-light)",borderTop:"1px solid var(--gray-mid)"}}>
             Mostrando 10 de {dashFiltered.length} resultados ·{" "}
@@ -1002,22 +977,7 @@ const CompaniesPage = () => {
   const handleCopy=(key)=>{ navigator.clipboard?.writeText(key); setCopied(key); setTimeout(()=>setCopied(null),2500); };
   return (
     <div>
-      {showCreate&&(
-        <div className="modal-overlay">
-          <div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}>
-            <div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:16}}>🏢 Cadastrar Empresa</div>
-            <div style={{display:"flex",flexDirection:"column",gap:13}}>
-              <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>NOME DA EMPRESA *</label><input className="input-field" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Ex: Calais Móveis Ltda."/></div>
-              <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>TELEFONE</label><input className="input-field" value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="(31) 99999-0000"/></div>
-              <div style={{background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.2)",borderRadius:8,padding:"10px 14px",fontSize:13,lineHeight:1.7}}>💡 Uma <strong>chave de 6 dígitos</strong> será gerada automaticamente.</div>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}>
-              <button className="btn-ghost" onClick={()=>setShowCreate(false)}>Cancelar</button>
-              <button className="btn-primary" onClick={handleCreate} disabled={creating||!newName.trim()}>{creating?<><div className="spinner"/>Criando...</>:"🏢 Criar Empresa"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showCreate&&(<div className="modal-overlay"><div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}><div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:16}}>🏢 Cadastrar Empresa</div><div style={{display:"flex",flexDirection:"column",gap:13}}><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>NOME DA EMPRESA *</label><input className="input-field" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Ex: Calais Móveis Ltda."/></div><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>TELEFONE</label><input className="input-field" value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="(31) 99999-0000"/></div><div style={{background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.2)",borderRadius:8,padding:"10px 14px",fontSize:13,lineHeight:1.7}}>💡 Uma <strong>chave de 6 dígitos</strong> será gerada automaticamente.</div></div><div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>setShowCreate(false)}>Cancelar</button><button className="btn-primary" onClick={handleCreate} disabled={creating||!newName.trim()}>{creating?<><div className="spinner"/>Criando...</>:"🏢 Criar Empresa"}</button></div></div></div>)}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
         <div><div className="barlow" style={{fontSize:32,fontWeight:800}}>Empresas</div><p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{companies.length} empresa(s)</p></div>
         <button className="btn-primary" onClick={()=>setShowCreate(true)}><Icon name="plus" size={16}/>Nova Empresa</button>
