@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabase.js";
 
-// ─── LOGO SVG (texto puro — 200 bytes vs 60KB do base64) ─────────────────────
+// ─── LOGO SVG (texto puro) ────────────────────────────────────────────────────
 const LogoMark = ({ height = 36, collapsed = false }) => collapsed ? (
   <svg height={height} width={height} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
     <rect x="0" y="0" width="40" height="40" fill="#1C1C1C" rx="6"/>
@@ -444,7 +444,7 @@ const NewOrder = ({ user, onSubmit }) => {
           <div style={{fontSize:11,color:"var(--gray-light)",marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Número do pedido</div>
           <div style={{fontSize:22,fontWeight:800,color:"var(--yellow)",marginBottom:12}}>{submitted.display_id}</div>
           <div style={{display:"flex",flexDirection:"column",gap:8,fontSize:13}}>
-            <div style={{display:"flex",gap:8}}><span>📊</span><span>Acompanhe no <strong>painel</strong> — a barra mostrará cada etapa em tempo real</span></div>
+            <div style={{display:"flex",gap:8}}><span>📊</span><span>Acompanhe no <strong>painel</strong> em tempo real</span></div>
             <div style={{display:"flex",gap:8}}><span>💬</span><span>Use o <strong>chat interno</strong> para dúvidas</span></div>
             <div style={{display:"flex",gap:8}}><span>📲</span><span>Notificação quando <strong>pronto para retirada</strong></span></div>
           </div>
@@ -821,8 +821,7 @@ const CompaniesPage = () => {
   useEffect(()=>{ loadCompanies(); },[]);
 
   const handleCreate=async()=>{
-    if (!newName.trim()) return;
-    setCreating(true);
+    if (!newName.trim()) return; setCreating(true);
     let key,exists=true;
     while(exists){ key=Math.floor(100000+Math.random()*900000).toString(); const {data}=await supabase.from("companies").select("id").eq("access_key",key).maybeSingle(); exists=!!data; }
     await supabase.from("companies").insert({name:newName.trim(),phone:newPhone.trim()||null,access_key:key});
@@ -853,7 +852,7 @@ const CompaniesPage = () => {
         <div><div className="barlow" style={{fontSize:32,fontWeight:800}}>Empresas</div><p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{companies.length} empresa(s) cadastrada(s)</p></div>
         <button className="btn-primary" onClick={()=>setShowCreate(true)}><Icon name="plus" size={16}/>Nova Empresa</button>
       </div>
-      {companies.length===0?<div className="card" style={{textAlign:"center",padding:40,color:"var(--gray-light)"}}><div style={{fontSize:36,marginBottom:8}}>🏢</div><div>Nenhuma empresa cadastrada ainda.</div><button className="btn-primary" style={{marginTop:14}} onClick={()=>setShowCreate(true)}>Cadastrar primeira empresa</button></div>
+      {companies.length===0?<div className="card" style={{textAlign:"center",padding:40,color:"var(--gray-light)"}}><div style={{fontSize:36,marginBottom:8}}>🏢</div><div>Nenhuma empresa ainda.</div><button className="btn-primary" style={{marginTop:14}} onClick={()=>setShowCreate(true)}>Cadastrar primeira empresa</button></div>
       :companies.map(co=>(
         <div key={co.id} className="card" style={{marginBottom:14}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:16}}>
@@ -919,14 +918,14 @@ const UsersPage = ({ orders }) => {
   const handleSaveEdit=async()=>{
     if (!editName.trim()) return; setSaving(true);
     await supabase.from("profiles").update({name:editName.trim(),phone:editPhone.trim()}).eq("id",editClient.id);
-    setSaving(false);setEditClient(null);showToast("Cliente atualizado com sucesso!");loadClients();
+    setSaving(false);setEditClient(null);showToast("Cliente atualizado!");loadClients();
   };
 
   const handleDelete=async()=>{
     if (deleteConfirm!=="DELETAR") return; setSaving(true);
     await supabase.from("orders").update({client_id:null}).eq("client_id",deleteClient.id);
     await supabase.from("profiles").delete().eq("id",deleteClient.id);
-    setSaving(false);setDeleteClient(null);setDeleteConfirm("");showToast("Cliente excluído do sistema.","red");loadClients();
+    setSaving(false);setDeleteClient(null);setDeleteConfirm("");showToast("Cliente excluído.","red");loadClients();
   };
 
   const handleResetPassword=async()=>{
@@ -984,7 +983,7 @@ const UsersPage = ({ orders }) => {
             </div>
             <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>DELETAR</code> para confirmar:</div>
             <input className="input-field" value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="DELETAR" style={{borderColor:deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}}/>
-            <div style={{fontSize:12,color:"var(--gray-light)",marginTop:10,padding:"8px 10px",background:"rgba(255,255,255,.03)",borderRadius:6,lineHeight:1.6}}>ℹ️ Login permanece ativo no Supabase — remova manualmente em Authentication → Users se necessário.</div>
+            <div style={{fontSize:12,color:"var(--gray-light)",marginTop:10,padding:"8px 10px",background:"rgba(255,255,255,.03)",borderRadius:6}}>ℹ️ Login permanece no Supabase — remova em Authentication → Users se necessário.</div>
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
               <button className="btn-ghost" onClick={()=>{setDeleteClient(null);setDeleteConfirm("");}}>Cancelar</button>
               <button style={{background:deleteConfirm==="DELETAR"?"#c62828":"var(--gray-mid)",color:"white",border:`1px solid ${deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}`,borderRadius:6,padding:"11px 22px",fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,cursor:deleteConfirm==="DELETAR"?"pointer":"not-allowed",opacity:deleteConfirm==="DELETAR"?1:0.5,display:"inline-flex",alignItems:"center",gap:8,transition:"all .2s"}} onClick={handleDelete} disabled={deleteConfirm!=="DELETAR"||saving}>
@@ -1096,24 +1095,39 @@ export default function App() {
     return()=>{ clearTimeout(authTimeout);subscription.unsubscribe(); };
   },[]);
 
+  // ── CORREÇÃO PRINCIPAL: filtro explícito por empresa, não depende só da RLS ──
   const loadOrders=useCallback(async()=>{
     if(!user) return;
     setOrdersLoading(true);
-    let query=supabase.from("orders").select("*").order("created_at",{ascending:false});
-    if(user.role!=="admin"&&!user.company_id) query=query.eq("client_id",user.id);
-    const {data}=await query;
-    const list=data||[];
-    if(list.length>0){
-      const orderIds=list.map(o=>o.id);
-      const {data:msgs}=await supabase.from("messages").select("order_id,sender_role,created_at").in("order_id",orderIds);
-      const withUnread=list.map(o=>{
-        const lastRead=user.role==="admin"?o.last_read_admin_at:o.last_read_client_at;
-        const lastReadDate=lastRead?new Date(lastRead):new Date(0);
-        const unread=(msgs||[]).filter(m=>m.order_id===o.id&&m.sender_role!==user.role&&new Date(m.created_at)>lastReadDate).length;
-        return {...o,unread_count:unread};
-      });
-      setOrders(withUnread);
-    } else setOrders(list);
+    try {
+      let query=supabase.from("orders").select("*").order("created_at",{ascending:false});
+
+      if(user.role!=="admin") {
+        if(user.company_id) {
+          // Membro de empresa: vê pedidos da empresa OU pedidos próprios
+          // Usa filtro explícito para não depender só da RLS
+          query=query.or(`client_id.eq.${user.id},company_id.eq.${user.company_id}`);
+        } else {
+          // Cliente individual: só os próprios pedidos
+          query=query.eq("client_id",user.id);
+        }
+      }
+      // Admin não tem filtro — vê tudo
+
+      const {data}=await query;
+      const list=data||[];
+      if(list.length>0){
+        const orderIds=list.map(o=>o.id);
+        const {data:msgs}=await supabase.from("messages").select("order_id,sender_role,created_at").in("order_id",orderIds);
+        const withUnread=list.map(o=>{
+          const lastRead=user.role==="admin"?o.last_read_admin_at:o.last_read_client_at;
+          const lastReadDate=lastRead?new Date(lastRead):new Date(0);
+          const unread=(msgs||[]).filter(m=>m.order_id===o.id&&m.sender_role!==user.role&&new Date(m.created_at)>lastReadDate).length;
+          return {...o,unread_count:unread};
+        });
+        setOrders(withUnread);
+      } else setOrders(list);
+    } catch(e){ console.error("Erro ao carregar pedidos:",e); setOrders([]); }
     setOrdersLoading(false);
   },[user]);
 
