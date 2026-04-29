@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabase.js";
 
-const LOGO_IMG = "data:image/jpeg;base64,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";
+const LOGO_IMG = "data:image/jpeg;base64,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";
 
 // ─── GOOGLE FONTS ─────────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -195,7 +195,7 @@ const LoginPage = ({ onLogin }) => {
         const {data: p} = await supabase.from("profiles").select("*").eq("id", data.user.id).maybeSingle();
         profile = p;
       } catch(e) {}
-      onLogin({ ...data.user, name: profile?.name || data.user.email?.split("@")[0] || "Usuário", phone: profile?.phone || "", role: profile?.role || "client" });
+      onLogin({ ...data.user, name: profile?.name || data.user.email?.split("@")[0] || "Usuário", phone: profile?.phone || "", role: profile?.role || "client", company_id: profile?.company_id || null });
     } catch(e) {
       setError("Erro de conexão. Verifique sua internet e tente novamente.");
     }
@@ -412,20 +412,22 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
           </div>
         ) : orders.slice(0,5).map(o=>{
           const step = stepIndex(o.status);
-          const cfg = STATUS_CONFIG[o.status]||STATUS_CONFIG.aguardando;
           const hasUnread = (o.unread_count || 0) > 0;
           return (
             <div key={o.id} style={{ padding:"14px 0",borderBottom:"1px solid var(--gray-mid)",cursor:"pointer" }}
               onClick={()=>{setSelectedOrder(o);setActiveTab("order-detail");}}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-                <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
                   <span style={{ fontWeight:600,fontSize:14 }}>{o.title}</span>
                   <span style={{ fontSize:12,color:"var(--gray-light)" }}>{o.display_id}</span>
+                  {/* ── NOVO: badge de quem criou o pedido (visão empresa) ── */}
+                  {user.company_id && o.client_id !== user.id && (
+                    <span style={{ fontSize:11,color:"var(--yellow)",fontWeight:600,background:"rgba(245,184,0,.1)",padding:"2px 7px",borderRadius:10 }}>👤 {o.client_name}</span>
+                  )}
                   {hasUnread && <span className="msg-dot" title="Nova mensagem no chat"/>}
                 </div>
                 <StatusBadge status={o.status} subStatus={o.sub_status}/>
               </div>
-              {/* ── FIX BUG 2: fontSize 9→12 nas labels das etapas ── */}
               <div style={{ display:"flex",alignItems:"flex-start",gap:2 }}>
                 {STEPS.map((s,i)=>(
                   <div key={s.key} style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3 }}>
@@ -486,7 +488,9 @@ const NewOrder = ({ user, onSubmit }) => {
       const fullTitle = `${title}${clientName?" — "+clientName:""}${ot?" [OT:"+ot+"]":""}`;
       const { data: order, error } = await supabase.from("orders").insert({
         display_id, client_id: user.id, client_name: user.name||user.email,
-        title: fullTitle, description, status: "aguardando"
+        title: fullTitle, description, status: "aguardando",
+        // ── CORREÇÃO: grava company_id para compartilhar com colegas da empresa ──
+        company_id: user.company_id || null
       }).select().single();
       if (error) { console.error("Erro ao criar pedido:", error); setLoading(false); return; }
       const uploadWithTimeout = (file, path) => Promise.race([
@@ -666,13 +670,18 @@ const OrderList = ({ user, orders, setSelectedOrder, setActiveTab }) => {
         ) : filtered.map(o=>(
           <div key={o.id} className="table-row" style={{ gridTemplateColumns:isAdmin?"2fr 130px 150px 70px":"2fr 150px 70px",cursor:"pointer" }}
             onClick={()=>{setSelectedOrder(o);setActiveTab("order-detail");}}>
-            {/* ── FIX BUG 1: msg-dot na listagem ── */}
             <div>
               <div style={{ fontWeight:500,fontSize:14,display:"flex",alignItems:"center",gap:8 }}>
                 {o.title}
                 {(o.unread_count || 0) > 0 && <span className="msg-dot" title="Nova mensagem"/>}
               </div>
-              <div style={{ fontSize:12,color:"var(--gray-light)",marginTop:2 }}>{o.display_id} · {new Date(o.created_at).toLocaleDateString("pt-BR")}</div>
+              <div style={{ fontSize:12,color:"var(--gray-light)",marginTop:2 }}>
+                {o.display_id} · {new Date(o.created_at).toLocaleDateString("pt-BR")}
+                {/* ── NOVO: mostra quem criou quando visualizado por colega da empresa ── */}
+                {!isAdmin && user.company_id && o.client_id !== user.id && (
+                  <span style={{ marginLeft:8,color:"var(--yellow)",fontWeight:600 }}>· 👤 {o.client_name}</span>
+                )}
+              </div>
             </div>
             {isAdmin&&<div style={{ fontSize:13 }}>{o.client_name}</div>}
             <StatusBadge status={o.status} subStatus={o.sub_status}/>
@@ -706,11 +715,8 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
   useEffect(() => {
     supabase.from("order_files").select("*").eq("order_id",order.id).then(({data})=>setOrderFiles(data||[]));
     loadMessages();
-
-    // ── FIX BUG 1: marca como lido ao abrir o pedido ──
     const field = user.role === "admin" ? "last_read_admin_at" : "last_read_client_at";
     supabase.from("orders").update({ [field]: new Date().toISOString() }).eq("id", order.id).then(()=>{});
-
     pollRef.current = setInterval(loadMessages, 4000);
     return ()=>{ clearInterval(pollRef.current); };
   }, [order.id]);
@@ -845,7 +851,6 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus }) => {
             ))}
           </div>
 
-          {/* ── Histórico de etapas com datas ── */}
           {Object.keys(currentOrder.step_history||{}).length > 0 && (() => {
             const history = currentOrder.step_history || {};
             const stepKeys = STEPS.map(s => s.key).filter(k => history[k]);
@@ -941,7 +946,6 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab }) => {
         </div>
         {orders.slice(0,6).map(o=>(
           <div key={o.id} className="table-row" style={{ gridTemplateColumns:"1fr 130px 160px 70px",cursor:"pointer" }} onClick={()=>{setSelectedOrder(o);setActiveTab("order-detail");}}>
-            {/* ── FIX BUG 1: msg-dot no admin dashboard ── */}
             <div>
               <div style={{ fontWeight:500,fontSize:14,display:"flex",alignItems:"center",gap:8 }}>
                 {o.title}
@@ -977,7 +981,6 @@ const CompaniesPage = () => {
   const handleCreate = async () => {
     if (!newName.trim()) return;
     setCreating(true);
-    // Gera chave única de 6 dígitos
     let key, exists = true;
     while (exists) {
       key = Math.floor(100000 + Math.random() * 900000).toString();
@@ -1063,7 +1066,6 @@ const CompaniesPage = () => {
         </div>
       ))}
 
-      {/* Instrução para funcionários */}
       <div className="card" style={{ background:"rgba(26,77,46,.08)",border:"1px solid rgba(26,107,46,.2)",marginTop:8 }}>
         <div className="barlow" style={{ fontSize:16,fontWeight:700,marginBottom:10,color:"#4caf72" }}>Como vincular funcionários</div>
         <div style={{ fontSize:13,color:"var(--gray-light)",lineHeight:1.9 }}>
@@ -1095,9 +1097,17 @@ const UsersPage = ({ orders }) => {
     setTimeout(()=>setToast(null), 4000);
   };
 
-  const loadClients = () => {
-    supabase.from("profiles").select("*").eq("role","client").then(({data})=>setClients(data||[]));
+  // ── CORREÇÃO: busca empresa junto com o perfil ──
+  const loadClients = async () => {
+    const { data: clientsData } = await supabase.from("profiles").select("*").eq("role","client");
+    const { data: companiesData } = await supabase.from("companies").select("id,name");
+    const compMap = Object.fromEntries((companiesData||[]).map(c=>[c.id, c.name]));
+    setClients((clientsData||[]).map(c=>({
+      ...c,
+      company_name: c.company_id ? (compMap[c.company_id] || null) : null
+    })));
   };
+
   useEffect(()=>{ loadClients(); },[]);
 
   const displayName = (c) => c.name || c.email?.split("@")[0] || "—";
@@ -1149,14 +1159,12 @@ const UsersPage = ({ orders }) => {
 
   return (
     <div>
-      {/* ── Toast ── */}
       {toast && (
         <div style={{ position:"fixed",top:20,right:20,zIndex:600,background:toast.type==="red"?"#b71c1c":"#1b5e20",border:`1px solid ${toast.type==="red"?"#ef5350":"#4caf72"}`,borderRadius:10,padding:"12px 20px",color:"white",fontSize:14,fontWeight:500,boxShadow:"0 4px 20px rgba(0,0,0,.5)",animation:"fadeIn .3s ease" }}>
           {toast.type==="red"?"🗑️":"✅"} {toast.msg}
         </div>
       )}
 
-      {/* ── Modal Editar ── */}
       {editClient && (
         <div className="modal-overlay">
           <div style={{ background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:"28px",maxWidth:420,width:"90%",animation:"fadeIn .25s ease" }}>
@@ -1182,7 +1190,6 @@ const UsersPage = ({ orders }) => {
         </div>
       )}
 
-      {/* ── Modal Reset Senha ── */}
       {resetClient && (
         <div className="modal-overlay">
           <div style={{ background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:"28px",maxWidth:420,width:"90%",animation:"fadeIn .25s ease" }}>
@@ -1207,7 +1214,6 @@ const UsersPage = ({ orders }) => {
         </div>
       )}
 
-      {/* ── Modal Excluir ── */}
       {deleteClient && (
         <div className="modal-overlay">
           <div style={{ background:"var(--gray-dark)",border:"1px solid rgba(200,16,46,.4)",borderRadius:14,padding:"28px",maxWidth:440,width:"90%",animation:"fadeIn .25s ease" }}>
@@ -1239,7 +1245,6 @@ const UsersPage = ({ orders }) => {
         </div>
       )}
 
-      {/* ── Lista ── */}
       <div style={{ marginBottom:22 }}>
         <div className="barlow" style={{ fontSize:32,fontWeight:800 }}>Clientes</div>
         <p style={{ color:"var(--gray-light)",fontSize:14,marginTop:4 }}>{clients.length} clientes cadastrados</p>
@@ -1258,6 +1263,10 @@ const UsersPage = ({ orders }) => {
               <div>
                 <div style={{ fontWeight:500 }}>{displayName(c)}</div>
                 <div style={{ fontSize:12,color:"var(--gray-light)" }}>{c.email||"—"}</div>
+                {/* ── NOVO: mostra empresa vinculada ── */}
+                {c.company_name && (
+                  <div style={{ fontSize:11,color:"var(--yellow)",marginTop:2 }}>🏢 {c.company_name}</div>
+                )}
               </div>
             </div>
             <div style={{ fontSize:13,color:"var(--gray-light)" }}>{c.phone||"—"}</div>
@@ -1326,12 +1335,10 @@ export default function App() {
         const { data: profile, error } = await supabase
           .from("profiles").select("*").eq("id", session.user.id).maybeSingle();
         if (profile && !error) {
-          // Sincroniza email no profile se ainda não tinha (usuários antigos)
           if (!profile.email && session.user.email) {
             await supabase.from("profiles").update({ email: session.user.email }).eq("id", session.user.id);
             profile.email = session.user.email;
           }
-          // Busca nome da empresa separadamente (não quebra se tabela não existir)
           let company_name = null;
           if (profile.company_id) {
             try {
@@ -1348,7 +1355,6 @@ export default function App() {
             company_name
           };
         }
-        // Perfil não existe ainda — cria
         const newProfile = { id: session.user.id, name: session.user.email?.split("@")[0] || "Usuário", phone: "", role: "client", email: session.user.email || "", company_id: null };
         await supabase.from("profiles").upsert(newProfile, {onConflict:"id"});
         return {...session.user, ...newProfile};
@@ -1365,8 +1371,6 @@ export default function App() {
         const exp = stored?.expires_at || stored?.user?.exp;
         const valid = exp && (exp * 1000) > Date.now();
         if (valid && stored?.user) {
-          // Fast path: não chama setAuthLoading(false) ainda — busca role primeiro
-          // para evitar piscar entre admin e client
           supabase.from("profiles").select("*").eq("id", stored.user.id).maybeSingle()
             .then(({ data: profile, error }) => {
               if (profile && !error) {
@@ -1380,7 +1384,6 @@ export default function App() {
                   company_name: null
                 });
               } else {
-                // Perfil com erro ou inexistente — usa email como fallback mas mantém sessão
                 setUser({ ...stored.user, name: stored.user.email?.split("@")[0] || "Usuário", role: "client", email: stored.user.email || "" });
               }
               setAuthLoading(false);
@@ -1407,14 +1410,16 @@ export default function App() {
     return () => { clearTimeout(authTimeout); subscription.unsubscribe(); };
   },[]);
 
-  // ── FIX BUG 1: loadOrders calcula unread_count ──
+  // ── loadOrders: sem filtro client_id quando é membro de empresa (RLS resolve) ──
   const loadOrders = useCallback(async()=>{
     if(!user) return;
     setOrdersLoading(true);
     let query = supabase.from("orders").select("*").order("created_at",{ascending:false});
-    if(user.role!=="admin") query=query.eq("client_id",user.id);
-    const {data}=await query;
+    // Se não é admin E não tem empresa vinculada → filtra só os próprios pedidos
+    // Se tem empresa → deixa a RLS retornar todos da empresa automaticamente
+    if(user.role!=="admin" && !user.company_id) query=query.eq("client_id",user.id);
 
+    const {data}=await query;
     const list = data || [];
     if (list.length > 0) {
       const orderIds = list.map(o => o.id);
@@ -1442,7 +1447,6 @@ export default function App() {
 
   useEffect(()=>{ if(user) loadOrders(); },[user, loadOrders]);
 
-  // ── FIX BUG 1: realtime escuta messages também ──
   useEffect(()=>{
     if(!user) return;
     const channel=supabase.channel("orders-changes")
