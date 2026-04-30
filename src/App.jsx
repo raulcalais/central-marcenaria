@@ -773,6 +773,8 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
   const chatRef=useRef();
   const attachRef=useRef();
   const isAdmin=user.role==="admin";
+  const isVendedor=user.role==="vendedor";
+  const canManage = isAdmin || isVendedor; // admin e vendedor têm os mesmos poderes operacionais
   const pollRef=useRef();
 
   const loadMessages=async()=>{ try { const {data}=await supabase.from("messages").select("*").eq("order_id",order.id).order("created_at"); if(data) setMessages(data); } catch(e){} };
@@ -780,7 +782,7 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
 
   useEffect(()=>{
     loadFiles(); loadMessages();
-    const field=user.role==="admin"?"last_read_admin_at":"last_read_client_at";
+    const field = canManage ? "last_read_admin_at" : "last_read_client_at";
     supabase.from("orders").update({[field]:new Date().toISOString()}).eq("id",order.id).then(()=>{});
     pollRef.current=setInterval(loadMessages,4000);
     return()=>{ clearInterval(pollRef.current); };
@@ -891,10 +893,10 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
           </div>
           <div style={{fontSize:13,color:"var(--gray-light)",marginTop:2}}>{currentOrder.display_id} · {currentOrder.client_name} · {new Date(currentOrder.created_at).toLocaleDateString("pt-BR")}</div>
         </div>
-        {isAdmin && NEXT_STATUS[currentOrder.status] && (
+        {canManage && NEXT_STATUS[currentOrder.status] && (
           <button className="btn-primary" onClick={handleAdvance}>▶ Avançar: {STATUS_CONFIG[NEXT_STATUS[currentOrder.status]]?.label}</button>
         )}
-        {isAdmin && (
+        {canManage && (
           <button onClick={()=>setShowDeleteModal(true)} title="Excluir pedido"
             style={{background:"rgba(200,16,46,.1)",border:"1.5px solid rgba(200,16,46,.3)",borderRadius:6,color:"#ef5350",cursor:"pointer",padding:"9px 14px",display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:600,transition:"all .2s"}}
             onMouseEnter={e=>{e.currentTarget.style.background="rgba(200,16,46,.2)";}}
@@ -934,7 +936,7 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
             <div ref={chatRef} style={{maxHeight:280,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,marginBottom:14,paddingRight:4}}>
               {messages.length===0&&<div style={{textAlign:"center",color:"var(--gray-light)",fontSize:13,padding:20}}>Inicie a conversa!</div>}
               {messages.map(msg=>{
-                const isMine=(isAdmin&&msg.sender_role==="admin")||(!isAdmin&&msg.sender_role!=="admin");
+                const isMine = msg.sender_id === user.id;
                 return (
                   <div key={msg.id} style={{display:"flex",flexDirection:"column",alignItems:isMine?"flex-end":"flex-start"}}>
                     <div style={{fontSize:11,color:"var(--gray-light)",marginBottom:4}}>{msg.sender_name} · {new Date(msg.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</div>
@@ -993,7 +995,7 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
               </div>
             );
           })()}
-          {isAdmin&&(
+          {canManage&&(
             <div className="card">
               <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:12}}>⚙️ Atualizar Status</div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -1567,11 +1569,13 @@ export default function App() {
       const list=data||[];
       if(list.length>0){
         const orderIds=list.map(o=>o.id);
-        const {data:msgs}=await supabase.from("messages").select("order_id,sender_role,created_at").in("order_id",orderIds);
+        const {data:msgs}=await supabase.from("messages").select("order_id,sender_role,sender_id,created_at").in("order_id",orderIds);
+        const isInternal = user.role === "admin" || user.role === "vendedor";
         const withUnread=list.map(o=>{
-          const lastRead=user.role==="admin"?o.last_read_admin_at:o.last_read_client_at;
+          const lastRead = isInternal ? o.last_read_admin_at : o.last_read_client_at;
           const lastReadDate=lastRead?new Date(lastRead):new Date(0);
-          const unread=(msgs||[]).filter(m=>m.order_id===o.id&&m.sender_role!==user.role&&new Date(m.created_at)>lastReadDate).length;
+          // mensagens não-mais (sender_id !== user.id) que chegaram depois da última leitura
+          const unread=(msgs||[]).filter(m=>m.order_id===o.id&&m.sender_id!==user.id&&new Date(m.created_at)>lastReadDate).length;
           return {...o,unread_count:unread};
         });
         setOrders(withUnread);
