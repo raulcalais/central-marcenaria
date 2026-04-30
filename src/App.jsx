@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "./supabase.js";
 
 // ─── LOGO SVG ─────────────────────────────────────────────────────────────────
@@ -37,7 +38,7 @@ const FontLoader = () => (
     ::-webkit-scrollbar{width:6px;}
     ::-webkit-scrollbar-track{background:var(--gray-dark);}
     ::-webkit-scrollbar-thumb{background:var(--gray);border-radius:3px;}
-    @keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+    @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
     @keyframes spin{to{transform:rotate(360deg);}}
     .fade-in{animation:fadeIn 0.4s ease forwards;}
     .spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,0.2);border-top-color:#F5B800;border-radius:50%;animation:spin 0.7s linear infinite;}
@@ -69,7 +70,10 @@ const FontLoader = () => (
     .step-dot{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;transition:all .3s;}
     .upload-zone{border:2px dashed var(--gray);border-radius:12px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;}
     .upload-zone:hover{border-color:var(--yellow);background:rgba(245,184,0,.04);}
-    .chat-bubble{max-width:75%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5;}
+    .chat-bubble{max-width:75%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5;word-break:break-word;overflow-wrap:anywhere;}
+    .chat-bubble a{color:inherit;text-decoration:underline;}
+    .chat-mine a{color:var(--black);}
+    .chat-other a{color:#64b5f6;}
     .chat-mine{background:var(--yellow);color:var(--black);border-bottom-right-radius:4px;}
     .chat-other{background:var(--gray-mid);color:var(--white);border-bottom-left-radius:4px;}
     .sidebar-item{display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;font-size:14px;color:var(--gray-light);cursor:pointer;transition:all .2s;}
@@ -80,10 +84,160 @@ const FontLoader = () => (
     .table-header{color:var(--gray-light);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;}
     .msg-dot{width:9px;height:9px;border-radius:50%;background:#ef5350;display:inline-block;flex-shrink:0;box-shadow:0 0 6px rgba(239,83,80,.6);animation:pulseDot 1.5s infinite;}
     @keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.7;transform:scale(1.3)}}
-    .modal-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.75);z-index:500;display:flex;align-items:center;justify-content:center;}
+    .modal-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.75);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;}
     .highlight{background:rgba(245,184,0,.25);border-radius:3px;padding:0 2px;color:var(--yellow);font-weight:600;}
+    .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:9500;display:flex;flex-direction:column;}
+    .lightbox-topbar{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.08);}
+    .lightbox-stage{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
+    .lightbox-img{max-width:92vw;max-height:calc(100vh - 120px);object-fit:contain;transition:transform .15s ease;cursor:grab;}
+    .lightbox-img.zoomed{cursor:grabbing;}
+    .lightbox-iframe{width:90vw;height:calc(100vh - 120px);border:none;border-radius:8px;background:white;}
+    .lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);color:white;cursor:pointer;width:48px;height:48px;border-radius:50%;font-size:22px;display:flex;align-items:center;justify-content:center;transition:background .2s;}
+    .lightbox-nav:hover{background:rgba(245,184,0,.85);color:var(--black);}
+    .lightbox-nav:disabled{opacity:.3;cursor:not-allowed;}
+    .lightbox-icon-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:white;cursor:pointer;width:38px;height:38px;border-radius:8px;font-size:16px;display:inline-flex;align-items:center;justify-content:center;transition:background .2s;}
+    .lightbox-icon-btn:hover{background:rgba(245,184,0,.85);color:var(--black);}
+    .attach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;}
+    .attach-thumb{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--gray-mid);cursor:pointer;border:1.5px solid var(--gray);transition:all .2s;}
+    .attach-thumb:hover{border-color:var(--yellow);transform:scale(1.02);}
+    .attach-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+    .attach-thumb-label{position:absolute;left:0;right:0;bottom:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.85));color:white;font-size:10px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;}
+    .attach-file-row{display:flex;align-items:center;gap:10px;background:var(--gray-mid);border-radius:8px;padding:8px 12px;cursor:pointer;transition:background .15s;}
+    .attach-file-row:hover{background:var(--gray);}
   `}</style>
 );
+
+// ─── MODAL VIA PORTAL (sobrepõe sidebar e qualquer container com transform) ──
+// Renderiza filhos em document.body, escapando de qualquer containing block
+// criado por ancestrais com transform/filter/perspective. Centralizado e bloqueia scroll.
+const Modal = ({ open, onClose, children, zIndex=9000 }) => {
+  useEffect(()=>{
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e) => { if (e.key==="Escape" && onClose) onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
+  },[open,onClose]);
+  if (!open) return null;
+  return createPortal(
+    <div className="modal-overlay" style={{zIndex}} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{maxWidth:"100%",maxHeight:"100%",overflow:"auto"}}>
+        {children}
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+// ─── IMAGE LIGHTBOX ──────────────────────────────────────────────────────────
+// Lightbox completo: navegação prev/next, zoom (botões + scroll + dblclick),
+// pan quando zoomed, ESC e setas. Usa Portal para sobrepor tudo (sidebar incluso).
+const ImageLightbox = ({ files, startIndex=0, onClose }) => {
+  const [idx,setIdx]=useState(startIndex);
+  const [zoom,setZoom]=useState(1);
+  const [pan,setPan]=useState({x:0,y:0});
+  const draggingRef=useRef(false);
+  const dragStartRef=useRef({x:0,y:0});
+  const file = files[idx];
+
+  const reset = () => { setZoom(1); setPan({x:0,y:0}); };
+  const next = useCallback(() => { if (idx<files.length-1) { setIdx(i=>i+1); reset(); } },[idx,files.length]);
+  const prev = useCallback(() => { if (idx>0) { setIdx(i=>i-1); reset(); } },[idx]);
+
+  useEffect(()=>{
+    const onKey=(e)=>{
+      if (e.key==="Escape") onClose();
+      else if (e.key==="ArrowRight") next();
+      else if (e.key==="ArrowLeft") prev();
+      else if (e.key==="+"||e.key==="=") setZoom(z=>Math.min(z+0.5,4));
+      else if (e.key==="-") setZoom(z=>{ const n=Math.max(z-0.5,1); if (n===1) setPan({x:0,y:0}); return n; });
+      else if (e.key==="0") reset();
+    };
+    window.addEventListener("keydown",onKey);
+    const prevOverflow=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    return ()=>{ window.removeEventListener("keydown",onKey); document.body.style.overflow=prevOverflow; };
+  },[next,prev,onClose]);
+
+  if (!file) return null;
+
+  const onWheel = (e) => {
+    if (!file.is_image) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.25 : 0.25;
+    setZoom(z=>{ const n=Math.max(1,Math.min(4,z+delta)); if (n===1) setPan({x:0,y:0}); return n; });
+  };
+  const onDblClick = () => { if (!file.is_image) return; if (zoom===1) setZoom(2); else reset(); };
+  const onMouseDown = (e) => { if (zoom>1) { draggingRef.current=true; dragStartRef.current={x:e.clientX-pan.x,y:e.clientY-pan.y}; } };
+  const onMouseMove = (e) => { if (draggingRef.current) setPan({x:e.clientX-dragStartRef.current.x,y:e.clientY-dragStartRef.current.y}); };
+  const onMouseUp = () => { draggingRef.current=false; };
+
+  return createPortal(
+    <div className="lightbox" onClick={onClose}>
+      <div className="lightbox-topbar" onClick={e=>e.stopPropagation()}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{color:"white",fontSize:14,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{file.name}</div>
+          <div style={{color:"var(--gray-light)",fontSize:11,marginTop:2}}>{file.size} · {idx+1} de {files.length}</div>
+        </div>
+        {file.is_image && (
+          <>
+            <button className="lightbox-icon-btn" onClick={()=>setZoom(z=>{ const n=Math.max(z-0.5,1); if (n===1) setPan({x:0,y:0}); return n; })} title="Diminuir zoom (-)">−</button>
+            <span style={{color:"var(--gray-light)",fontSize:12,minWidth:42,textAlign:"center"}}>{Math.round(zoom*100)}%</span>
+            <button className="lightbox-icon-btn" onClick={()=>setZoom(z=>Math.min(z+0.5,4))} title="Aumentar zoom (+)">+</button>
+            <button className="lightbox-icon-btn" onClick={reset} title="Resetar zoom (0)" style={{fontSize:13}}>1:1</button>
+          </>
+        )}
+        <a href={file.url} download target="_blank" rel="noreferrer" className="lightbox-icon-btn" title="Baixar" style={{textDecoration:"none"}}>↓</a>
+        <button className="lightbox-icon-btn" onClick={onClose} title="Fechar (ESC)" style={{fontSize:18}}>×</button>
+      </div>
+      <div className="lightbox-stage" onClick={e=>e.stopPropagation()} onWheel={onWheel}>
+        {files.length>1 && (
+          <button className="lightbox-nav" style={{left:18}} onClick={prev} disabled={idx===0} title="Anterior (←)">‹</button>
+        )}
+        {file.is_image ? (
+          <img
+            src={file.url}
+            alt={file.name}
+            className={`lightbox-img${zoom>1?" zoomed":""}`}
+            draggable={false}
+            onDoubleClick={onDblClick}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
+            style={{transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`}}
+          />
+        ) : (
+          <iframe src={file.url} title={file.name} className="lightbox-iframe"/>
+        )}
+        {files.length>1 && (
+          <button className="lightbox-nav" style={{right:18}} onClick={next} disabled={idx===files.length-1} title="Próximo (→)">›</button>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+// ─── LINKIFY ─────────────────────────────────────────────────────────────────
+// Quebra texto em pedaços e transforma URLs em <a> clicáveis.
+// Limita exibição a 60 caracteres pra não estourar o balão do chat.
+const Linkify = ({ text }) => {
+  if (!text) return null;
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return (
+    <>
+      {parts.map((p,i)=>{
+        if (/^https?:\/\//.test(p)) {
+          const display = p.length>60 ? p.slice(0,57)+"…" : p;
+          return <a key={i} href={p} target="_blank" rel="noreferrer">{display}</a>;
+        }
+        return <span key={i}>{p}</span>;
+      })}
+    </>
+  );
+};
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const matchSearch = (order, term) => {
@@ -179,8 +333,13 @@ const StatusBadge = ({ status, subStatus }) => {
   );
 };
 
-const StatusSteps = ({ currentStatus, stepHistory={}, createdAt }) => {
+const StatusSteps = ({ currentStatus, stepHistory={}, createdAt, subStatus }) => {
   const currentStep = STATUS_CONFIG[currentStatus]?.step ?? 0;
+  const onHold = subStatus === "aguardando_chapa";
+  // Quando "aguardando chapa", a etapa atual fica amarela (em vez de verde claro)
+  const activeColor = onHold ? "var(--orange)" : "var(--yellow)";
+  const activeLabelColor = onHold ? "var(--orange)" : "var(--yellow)";
+  const activeShadow = onHold ? "0 0 16px rgba(232,119,34,.45)" : "0 0 16px rgba(245,184,0,.4)";
   return (
     <div style={{margin:"20px 0"}}>
       <div style={{display:"flex",alignItems:"flex-start"}}>
@@ -190,10 +349,10 @@ const StatusSteps = ({ currentStatus, stepHistory={}, createdAt }) => {
           return (
             <div key={step.key} style={{display:"flex",alignItems:"center",flex:1}}>
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5,minWidth:70}}>
-                <div className="step-dot" style={{background:done?"#4caf72":active?"var(--yellow)":"var(--gray-mid)",color:active?"var(--black)":done?"white":"var(--gray-light)",boxShadow:active?"0 0 16px rgba(245,184,0,.4)":done?"0 0 8px rgba(76,175,114,.3)":"none",border:(!done&&!active)?"2px solid var(--gray)":"none"}}>
+                <div className="step-dot" style={{background:done?"#4caf72":active?activeColor:"var(--gray-mid)",color:active?"var(--black)":done?"white":"var(--gray-light)",boxShadow:active?activeShadow:done?"0 0 8px rgba(76,175,114,.3)":"none",border:(!done&&!active)?"2px solid var(--gray)":"none"}}>
                   {done?"✓":step.icon}
                 </div>
-                <span style={{fontSize:10,textAlign:"center",color:active?"var(--yellow)":done?"#4caf72":"var(--gray-light)",fontWeight:active?700:400,lineHeight:1.3}}>{step.label}</span>
+                <span style={{fontSize:10,textAlign:"center",color:active?activeLabelColor:done?"#4caf72":"var(--gray-light)",fontWeight:active?700:400,lineHeight:1.3}}>{step.label}</span>
                 {ts && <span style={{fontSize:9,color:"var(--gray-light)",textAlign:"center",lineHeight:1.2}}>{new Date(ts).toLocaleDateString("pt-BR")}<br/>{new Date(ts).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</span>}
               </div>
               {i<STEPS.length-1 && <div style={{flex:1,height:3,borderRadius:2,marginBottom:32,background:i<currentStep?"#4caf72":"var(--gray-mid)",transition:"background .3s"}}/>}
@@ -445,12 +604,26 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
                 <StatusBadge status={o.status} subStatus={o.sub_status}/>
               </div>
               <div style={{display:"flex",alignItems:"flex-start",gap:2}}>
-                {STEPS.map((s,i)=>(
-                  <div key={s.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                    <div style={{width:"100%",height:5,borderRadius:3,background:i<step?"#4caf72":i===step?"#66bb6a":"var(--gray-mid)",transition:"background .3s",boxShadow:i===step?"0 0 8px rgba(102,187,106,.5)":"none"}}/>
-                    <span style={{fontSize:12,color:i===step?"#66bb6a":i<step?"#4caf72":"var(--gray-light)",fontWeight:i===step?700:400,textAlign:"center",lineHeight:1.3,whiteSpace:"nowrap"}}>{s.icon} {s.label}</span>
-                  </div>
-                ))}
+                {STEPS.map((s,i)=>{
+                  const onHold = o.sub_status==="aguardando_chapa";
+                  const barColor = i<step ? "#4caf72"
+                                 : (i===step && onHold) ? "var(--orange)"
+                                 : i===step ? "#66bb6a"
+                                 : "var(--gray-mid)";
+                  const labelColor = i===step && onHold ? "var(--orange)"
+                                   : i===step ? "#66bb6a"
+                                   : i<step ? "#4caf72"
+                                   : "var(--gray-light)";
+                  const shadow = i===step && onHold ? "0 0 8px rgba(232,119,34,.5)"
+                               : i===step ? "0 0 8px rgba(102,187,106,.5)"
+                               : "none";
+                  return (
+                    <div key={s.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                      <div style={{width:"100%",height:5,borderRadius:3,background:barColor,transition:"background .3s",boxShadow:shadow}}/>
+                      <span style={{fontSize:12,color:labelColor,fontWeight:i===step?700:400,textAlign:"center",lineHeight:1.3,whiteSpace:"nowrap"}}>{s.icon} {s.label}</span>
+                    </div>
+                  );
+                })}
               </div>
               <div style={{fontSize:11,color:"var(--gray-light)",marginTop:6}}>Etapa {step+1} de 5 · {new Date(o.created_at).toLocaleDateString("pt-BR")}</div>
             </div>
@@ -536,8 +709,16 @@ const NewOrder = ({ user, onSubmit }) => {
   const handleFileAdd=(e,type)=>{ const arr=Array.from(e.target.files||[]); if(type==="file") setFiles(p=>[...p,...arr]); else setImages(p=>[...p,...arr]); };
 
   const handleSubmit = async () => {
-    if (!title||!description) return;
-    if (isVendedor && !selectedClientId) return;
+    // Validação por papel:
+    // - Cliente comum: ambiente + clientName (solicitante) + ot são obrigatórios
+    // - Vendedor: cliente da carteira selecionado + ambiente + ot
+    if (!title) return;
+    if (!ot) return;
+    if (isVendedor) {
+      if (!selectedClientId) return;
+    } else {
+      if (!clientName) return;
+    }
     setLoading(true);
     try {
       const display_id="CM-"+Date.now().toString().slice(-5);
@@ -588,13 +769,15 @@ const NewOrder = ({ user, onSubmit }) => {
 
   const resetForm=()=>{ setSubmitted(null);setTitle("");setClientName("");setOt("");setDescription("");setFiles([]);setImages([]);setSelectedClientId(""); };
 
-  const canSubmit = title && description && (!isVendedor || selectedClientId);
+  const canSubmit = isVendedor
+    ? (title && ot && selectedClientId)
+    : (title && ot && clientName);
 
   return (
     <>
-      {submitted && (
-        <div className="modal-overlay" style={{zIndex:9999}}>
-          <div style={{background:"var(--gray-dark)",border:"1px solid rgba(76,175,114,.3)",borderRadius:16,padding:"36px 32px",maxWidth:460,width:"90%",textAlign:"center",animation:"fadeIn .3s ease",boxShadow:"0 20px 60px rgba(0,0,0,.8)"}}>
+      <Modal open={!!submitted} onClose={()=>setSubmitted(null)} zIndex={9999}>
+        {submitted && (
+          <div style={{background:"var(--gray-dark)",border:"1px solid rgba(76,175,114,.3)",borderRadius:16,padding:"36px 32px",maxWidth:460,width:"min(460px,92vw)",textAlign:"center",animation:"fadeIn .3s ease",boxShadow:"0 20px 60px rgba(0,0,0,.8)"}}>
             <div style={{width:68,height:68,borderRadius:"50%",background:"rgba(76,175,114,.15)",border:"3px solid #4caf72",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,margin:"0 auto 16px"}}>✅</div>
             <div className="barlow" style={{fontSize:28,fontWeight:900,marginBottom:6}}>PEDIDO ENVIADO!</div>
             <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:20}}>Sua solicitação foi recebida com sucesso</div>
@@ -606,13 +789,13 @@ const NewOrder = ({ user, onSubmit }) => {
                 <div style={{display:"flex",gap:8}}><span>💬</span><span>Use o <strong>chat interno</strong> para dúvidas</span></div>
               </div>
             </div>
-            <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+            <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
               <button className="btn-primary" onClick={()=>{setSubmitted(null);onSubmit();}}>OK, ver pedidos →</button>
               <button className="btn-ghost" style={{fontSize:13}} onClick={resetForm}>Novo Pedido</button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
       <div>
         <div style={{marginBottom:20}}>
           <div className="barlow" style={{fontSize:30,fontWeight:800}}>Novo Pedido</div>
@@ -673,11 +856,11 @@ const NewOrder = ({ user, onSubmit }) => {
               <div style={{display:"flex",flexDirection:"column",gap:13}}>
                 <div style={{display:"grid",gridTemplateColumns:isVendedor?"1fr":"1fr 1fr",gap:12}}>
                   <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>AMBIENTE *</label><input className="input-field" placeholder="Ex: Sala de Estar, Cozinha..." value={title} onChange={e=>setTitle(e.target.value)}/></div>
-                  {!isVendedor && <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>CLIENTE (SOLICITANTE)</label><input className="input-field" placeholder="Nome do cliente final" value={clientName} onChange={e=>setClientName(e.target.value)}/></div>}
+                  {!isVendedor && <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>CLIENTE (SOLICITANTE) *</label><input className="input-field" placeholder="Nome do cliente final" value={clientName} onChange={e=>setClientName(e.target.value)}/></div>}
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"160px 1fr",gap:12}}>
-                  <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>Nº OT</label><input className="input-field" placeholder="Ex: 1042" type="number" value={ot} onChange={e=>setOt(e.target.value)}/></div>
-                  <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>DESCRIÇÃO DETALHADA *</label><input className="input-field" placeholder="Material, espessura, tipo de borda, quantidade de peças..." value={description} onChange={e=>setDescription(e.target.value)}/></div>
+                  <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>Nº OT *</label><input className="input-field" placeholder="Ex: 1042" type="number" value={ot} onChange={e=>setOt(e.target.value)}/></div>
+                  <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>DESCRIÇÃO DETALHADA <span style={{color:"var(--gray-light)",fontSize:10}}>· opcional</span></label><input className="input-field" placeholder="Material, espessura, tipo de borda, quantidade de peças..." value={description} onChange={e=>setDescription(e.target.value)}/></div>
                 </div>
               </div>
             </div>
@@ -818,18 +1001,64 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
   const [newMsg,setNewMsg]=useState("");
   const [sending,setSending]=useState(false);
   const [currentOrder,setCurrentOrder]=useState(order);
-  const [preview,setPreview]=useState(null);
+  const [preview,setPreview]=useState(null); // {file, list} ou null
   const [uploading,setUploading]=useState(false);
   const [showDeleteModal,setShowDeleteModal]=useState(false);
   const [deleteConfirmText,setDeleteConfirmText]=useState("");
   const [deleting,setDeleting]=useState(false);
+  // Edição de pedido
+  const [showEditModal,setShowEditModal]=useState(false);
+  const [editAmbiente,setEditAmbiente]=useState("");
+  const [editClienteNome,setEditClienteNome]=useState("");
+  const [editOt,setEditOt]=useState("");
+  const [editDescricao,setEditDescricao]=useState("");
+  const [savingEdit,setSavingEdit]=useState(false);
 
   const chatRef=useRef();
   const attachRef=useRef();
   const isAdmin=user.role==="admin";
   const isVendedor=user.role==="vendedor";
-  const canManage = isAdmin || isVendedor; // admin e vendedor têm os mesmos poderes operacionais
+  const canManage = isAdmin || isVendedor;
+  // Cliente pode editar enquanto o pedido ainda está aguardando análise.
+  // Admin/vendedor podem editar sempre.
+  const canEdit = canManage || (currentOrder.status === "aguardando" && currentOrder.client_id === user.id);
   const pollRef=useRef();
+
+  // Parsea um título no formato "Ambiente — Cliente [OT:1234]" em partes editáveis.
+  const parseTitle = (full="") => {
+    const otMatch = full.match(/\s*\[OT:([^\]]+)\]\s*$/i);
+    const ot = otMatch ? otMatch[1].trim() : "";
+    const withoutOt = otMatch ? full.replace(otMatch[0], "").trim() : full.trim();
+    const parts = withoutOt.split(/\s+—\s+/);
+    if (parts.length >= 2) {
+      return { ambiente: parts[0].trim(), cliente: parts.slice(1).join(" — ").trim(), ot };
+    }
+    return { ambiente: withoutOt, cliente: "", ot };
+  };
+
+  const openEditModal = () => {
+    const parsed = parseTitle(currentOrder.title);
+    setEditAmbiente(parsed.ambiente);
+    setEditClienteNome(parsed.cliente);
+    setEditOt(parsed.ot);
+    setEditDescricao(currentOrder.description || "");
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editAmbiente.trim()) return;
+    setSavingEdit(true);
+    try {
+      const newTitle = `${editAmbiente.trim()}${editClienteNome.trim()?" — "+editClienteNome.trim():""}${editOt.trim()?" [OT:"+editOt.trim()+"]":""}`;
+      await supabase.from("orders").update({
+        title: newTitle,
+        description: editDescricao,
+      }).eq("id", currentOrder.id);
+      setCurrentOrder(prev=>({...prev,title:newTitle,description:editDescricao}));
+      setShowEditModal(false);
+    } catch(e) { console.error("Erro ao editar pedido:",e); }
+    setSavingEdit(false);
+  };
 
   const loadMessages=async()=>{ try { const {data}=await supabase.from("messages").select("*").eq("order_id",order.id).order("created_at"); if(data) setMessages(data); } catch(e){} };
   const loadFiles=async()=>{ const {data}=await supabase.from("order_files").select("*").eq("order_id",order.id); setOrderFiles(data||[]); };
@@ -905,38 +1134,66 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
 
   return (
     <div>
+      {/* Lightbox: usa Portal e cobre tudo (inclusive sidebar). Suporta navegação e zoom. */}
       {preview && (
-        <div onClick={()=>setPreview(null)} style={{position:"fixed",top:0,left:0,width:"100vw",height:"100vh",background:"rgba(0,0,0,0.92)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}}>
-          <div onClick={e=>e.stopPropagation()} style={{position:"relative",maxWidth:"90vw",maxHeight:"90vh"}}>
-            <button onClick={()=>setPreview(null)} style={{position:"absolute",top:-40,right:0,background:"none",border:"none",color:"white",fontSize:32,cursor:"pointer"}}>×</button>
-            {preview.is_image?<img src={preview.url} alt={preview.name} style={{maxWidth:"85vw",maxHeight:"85vh",borderRadius:8,objectFit:"contain"}}/>:<iframe src={preview.url} title={preview.name} style={{width:"80vw",height:"80vh",border:"none",borderRadius:8,background:"white"}}/>}
-            <div style={{textAlign:"center",marginTop:12,color:"var(--gray-light)",fontSize:13}}>{preview.name}</div>
-            <div style={{textAlign:"center",marginTop:8}}><a href={preview.url} download target="_blank" rel="noreferrer" className="btn-primary" style={{fontSize:13,padding:"8px 18px",textDecoration:"none"}}>↓ Baixar</a></div>
-          </div>
-        </div>
+        <ImageLightbox
+          files={preview.list}
+          startIndex={preview.list.findIndex(f=>f.id===preview.file.id)}
+          onClose={()=>setPreview(null)}
+        />
       )}
 
-      {showDeleteModal && (
-        <div className="modal-overlay" style={{zIndex:600}}>
-          <div style={{background:"var(--gray-dark)",border:"1px solid rgba(200,16,46,.4)",borderRadius:14,padding:28,maxWidth:440,width:"90%",animation:"fadeIn .25s ease"}}>
-            <div className="barlow" style={{fontSize:24,fontWeight:800,color:"#ef5350",marginBottom:4}}>⚠️ Excluir Pedido</div>
-            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:16}}>Esta ação é <strong style={{color:"var(--white)"}}>permanente e irreversível</strong>. Todos os arquivos, mensagens e registros serão deletados.</div>
-            <div style={{background:"rgba(200,16,46,.08)",border:"1px solid rgba(200,16,46,.2)",borderRadius:8,padding:"12px 14px",marginBottom:16}}>
-              <div style={{fontSize:14,fontWeight:600}}>{currentOrder.title}</div>
-              <div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>{currentOrder.display_id} · {currentOrder.client_name}</div>
-              <div style={{fontSize:12,color:"var(--gray-light)",marginTop:6}}>📎 {orderFiles.length} arquivo(s) · 💬 {messages.length} mensagem(s) — <strong style={{color:"#ef5350"}}>tudo será deletado</strong></div>
-            </div>
-            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>EXCLUIR</code> para confirmar:</div>
-            <input className="input-field" value={deleteConfirmText} onChange={e=>setDeleteConfirmText(e.target.value)} placeholder="EXCLUIR" style={{borderColor:deleteConfirmText==="EXCLUIR"?"#ef5350":"var(--gray)"}}/>
-            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
-              <button className="btn-ghost" onClick={()=>{setShowDeleteModal(false);setDeleteConfirmText("");}}>Cancelar</button>
-              <button className="btn-danger" onClick={handleDeleteOrder} disabled={deleteConfirmText!=="EXCLUIR"||deleting} style={{opacity:deleteConfirmText==="EXCLUIR"?1:0.5}}>
-                {deleting?<><div className="spinner"/>Excluindo...</>:"🗑️ Excluir Definitivamente"}
-              </button>
-            </div>
+      <Modal open={showDeleteModal} onClose={()=>{setShowDeleteModal(false);setDeleteConfirmText("");}} zIndex={9100}>
+        <div style={{background:"var(--gray-dark)",border:"1px solid rgba(200,16,46,.4)",borderRadius:14,padding:28,maxWidth:440,width:"min(440px,92vw)",animation:"fadeIn .25s ease"}}>
+          <div className="barlow" style={{fontSize:24,fontWeight:800,color:"#ef5350",marginBottom:4}}>⚠️ Excluir Pedido</div>
+          <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:16}}>Esta ação é <strong style={{color:"var(--white)"}}>permanente e irreversível</strong>. Todos os arquivos, mensagens e registros serão deletados.</div>
+          <div style={{background:"rgba(200,16,46,.08)",border:"1px solid rgba(200,16,46,.2)",borderRadius:8,padding:"12px 14px",marginBottom:16}}>
+            <div style={{fontSize:14,fontWeight:600}}>{currentOrder.title}</div>
+            <div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>{currentOrder.display_id} · {currentOrder.client_name}</div>
+            <div style={{fontSize:12,color:"var(--gray-light)",marginTop:6}}>📎 {orderFiles.length} arquivo(s) · 💬 {messages.length} mensagem(s) — <strong style={{color:"#ef5350"}}>tudo será deletado</strong></div>
+          </div>
+          <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>EXCLUIR</code> para confirmar:</div>
+          <input className="input-field" value={deleteConfirmText} onChange={e=>setDeleteConfirmText(e.target.value)} placeholder="EXCLUIR" style={{borderColor:deleteConfirmText==="EXCLUIR"?"#ef5350":"var(--gray)"}}/>
+          <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
+            <button className="btn-ghost" onClick={()=>{setShowDeleteModal(false);setDeleteConfirmText("");}}>Cancelar</button>
+            <button className="btn-danger" onClick={handleDeleteOrder} disabled={deleteConfirmText!=="EXCLUIR"||deleting} style={{opacity:deleteConfirmText==="EXCLUIR"?1:0.5}}>
+              {deleting?<><div className="spinner"/>Excluindo...</>:"🗑️ Excluir Definitivamente"}
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
+
+      {/* Modal de edição do pedido — disponível para admin/vendedor sempre, e para cliente enquanto status=aguardando */}
+      <Modal open={showEditModal} onClose={()=>setShowEditModal(false)} zIndex={9100}>
+        <div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:520,width:"min(520px,92vw)",animation:"fadeIn .25s ease"}}>
+          <div className="barlow" style={{fontSize:24,fontWeight:800,marginBottom:4}}>✏️ Editar Pedido</div>
+          <div style={{fontSize:12,color:"var(--gray-light)",marginBottom:18,background:"var(--gray-mid)",borderRadius:6,padding:"6px 10px",display:"inline-block"}}>{currentOrder.display_id}</div>
+          <div style={{display:"flex",flexDirection:"column",gap:13}}>
+            <div>
+              <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>AMBIENTE *</label>
+              <input className="input-field" value={editAmbiente} onChange={e=>setEditAmbiente(e.target.value)} placeholder="Ex: Sala de Estar, Cozinha..."/>
+            </div>
+            <div>
+              <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>CLIENTE (SOLICITANTE)</label>
+              <input className="input-field" value={editClienteNome} onChange={e=>setEditClienteNome(e.target.value)} placeholder="Nome do cliente final"/>
+            </div>
+            <div>
+              <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>Nº OT</label>
+              <input className="input-field" value={editOt} onChange={e=>setEditOt(e.target.value)} placeholder="Ex: 1042"/>
+            </div>
+            <div>
+              <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>DESCRIÇÃO</label>
+              <textarea className="input-field" value={editDescricao} onChange={e=>setEditDescricao(e.target.value)} placeholder="Material, espessura, tipo de borda, quantidade de peças..." rows={3} style={{minHeight:72}}/>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}>
+            <button className="btn-ghost" onClick={()=>setShowEditModal(false)}>Cancelar</button>
+            <button className="btn-primary" onClick={handleSaveEdit} disabled={savingEdit||!editAmbiente.trim()}>
+              {savingEdit?<><div className="spinner"/>Salvando...</>:"💾 Salvar Alterações"}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:24,flexWrap:"wrap"}}>
         <button className="btn-ghost" onClick={onBack} style={{padding:"8px 14px"}}><Icon name="arrow" size={14}/>Voltar</button>
@@ -944,6 +1201,14 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
           <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
             <div className="barlow" style={{fontSize:26,fontWeight:800}}>{currentOrder.title}</div>
             <StatusBadge status={currentOrder.status} subStatus={currentOrder.sub_status}/>
+            {canEdit && (
+              <button onClick={openEditModal} title="Editar pedido"
+                style={{background:"transparent",border:"1.5px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"4px 10px",display:"inline-flex",alignItems:"center",gap:5,fontSize:12,fontFamily:"DM Sans,sans-serif",transition:"all .2s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--yellow)";e.currentTarget.style.color="var(--yellow)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--gray)";e.currentTarget.style.color="var(--gray-light)";}}>
+                ✏️ Editar
+              </button>
+            )}
           </div>
           <div style={{fontSize:13,color:"var(--gray-light)",marginTop:2}}>{currentOrder.display_id} · {currentOrder.client_name} · {new Date(currentOrder.created_at).toLocaleDateString("pt-BR")}</div>
         </div>
@@ -962,7 +1227,7 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
 
       <div className="card" style={{marginBottom:20}}>
         <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:4}}>Progresso do Pedido</div>
-        <StatusSteps currentStatus={currentOrder.status} stepHistory={currentOrder.step_history||{}} createdAt={currentOrder.created_at}/>
+        <StatusSteps currentStatus={currentOrder.status} stepHistory={currentOrder.step_history||{}} createdAt={currentOrder.created_at} subStatus={currentOrder.sub_status}/>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:20}}>
@@ -971,20 +1236,48 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
             <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:10}}>📋 Descrição</div>
             <p style={{fontSize:14,color:"var(--off-white)",lineHeight:1.7}}>{currentOrder.description}</p>
           </div>
-          {orderFiles.length>0&&(
-            <div className="card">
-              <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:12}}>📎 Anexos ({orderFiles.length})</div>
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {orderFiles.map(f=>(
-                  <div key={f.id} onClick={()=>setPreview(f)} style={{display:"flex",alignItems:"center",gap:10,background:"var(--gray-mid)",borderRadius:8,padding:"10px 14px",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="var(--gray)"} onMouseLeave={e=>e.currentTarget.style.background="var(--gray-mid)"}>
-                    <span style={{fontSize:20}}>{f.is_image?"🖼️":"📄"}</span>
-                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:500}}>{f.name}</div><div style={{fontSize:11,color:"var(--gray-light)"}}>{f.size}</div></div>
-                    <span style={{fontSize:12,color:"var(--yellow)",fontWeight:600}}>{f.is_image?"👁️ Ver":"📖 Abrir"}</span>
-                  </div>
-                ))}
+          {orderFiles.length>0&&(()=>{
+            const imgs = orderFiles.filter(f=>f.is_image);
+            const docs = orderFiles.filter(f=>!f.is_image);
+            // Lista usada para navegação do lightbox (preview.list).
+            // Imagens primeiro pra navegação ficar agradável entre fotos.
+            const previewList = [...imgs, ...docs];
+            return (
+              <div className="card">
+                <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:12}}>📎 Anexos ({orderFiles.length})</div>
+                {imgs.length>0 && (
+                  <>
+                    <div style={{fontSize:11,color:"var(--gray-light)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8,fontWeight:600}}>🖼️ Imagens · {imgs.length}</div>
+                    <div className="attach-grid" style={{marginBottom:docs.length>0?16:0}}>
+                      {imgs.map(f=>(
+                        <div key={f.id} className="attach-thumb" onClick={()=>setPreview({file:f,list:previewList})} title={f.name}>
+                          <img src={f.url} alt={f.name} loading="lazy"/>
+                          <div className="attach-thumb-label">{f.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {docs.length>0 && (
+                  <>
+                    <div style={{fontSize:11,color:"var(--gray-light)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8,fontWeight:600}}>📄 Arquivos · {docs.length}</div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:8}}>
+                      {docs.map(f=>(
+                        <div key={f.id} className="attach-file-row" onClick={()=>setPreview({file:f,list:previewList})}>
+                          <span style={{fontSize:18,flexShrink:0}}>📄</span>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:12,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
+                            <div style={{fontSize:10,color:"var(--gray-light)"}}>{f.size}</div>
+                          </div>
+                          <span style={{fontSize:11,color:"var(--yellow)",fontWeight:600,flexShrink:0}}>Abrir →</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
           <div className="card">
             <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:12}}>💬 Mensagens</div>
             <div ref={chatRef} style={{maxHeight:280,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,marginBottom:14,paddingRight:4}}>
@@ -994,7 +1287,7 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
                 return (
                   <div key={msg.id} style={{display:"flex",flexDirection:"column",alignItems:isMine?"flex-end":"flex-start"}}>
                     <div style={{fontSize:11,color:"var(--gray-light)",marginBottom:4}}>{msg.sender_name} · {new Date(msg.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</div>
-                    <div className={`chat-bubble ${isMine?"chat-mine":"chat-other"}`}>{msg.text}</div>
+                    <div className={`chat-bubble ${isMine?"chat-mine":"chat-other"}`}><Linkify text={msg.text}/></div>
                   </div>
                 );
               })}
