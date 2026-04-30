@@ -1806,6 +1806,10 @@ export default function App() {
 
   useEffect(()=>{
     let authTimeout;
+    // ⚠️ REGRA DE OURO: buildUser NUNCA retorna user com role="client" como fallback.
+    // Se a leitura do profile falhar por qualquer motivo, retorna null e quem chamou
+    // decide o que fazer (geralmente: preservar o user que já está no estado).
+    // Isso evita o downgrade silencioso de admin/vendedor para client após refresh de token.
     const buildUser=async(session)=>{
       if (!session?.user) return null;
       try {
@@ -1820,20 +1824,27 @@ export default function App() {
             email:profile.email||session.user.email,
             company_id:profile.company_id||null,
             company_name,
-            vendedor_id:profile.vendedor_id||null, // Entrega B: inclui vendedor_id no user
+            vendedor_id:profile.vendedor_id||null,
           };
         }
-        // ⚠️ CRÍTICO: só cria perfil se realmente não existe (error=null e profile=null)
-        // Se houve erro de RLS/rede, NÃO toca no banco — evita sobrescrever role real
+        // Só cria perfil se realmente não existe (sem erro E sem profile retornado).
         if (!error && !profile) {
           const np={id:session.user.id,name:session.user.email?.split("@")[0]||"Usuário",phone:"",role:"client",email:session.user.email||"",company_id:null,vendedor_id:null};
-          await supabase.from("profiles").insert(np); // INSERT, nunca upsert
+          await supabase.from("profiles").insert(np);
           return {...session.user,...np};
         }
-        // Erro de RLS ou rede — retorna dados da sessão sem alterar o banco
-        return {...session.user,name:session.user.email?.split("@")[0]||"Usuário",role:"client",email:session.user.email||"",company_id:null,vendedor_id:null};
-      } catch(e){ return {...session.user,name:session.user.email?.split("@")[0]||"Usuário",role:"client",vendedor_id:null}; }
+        // Erro de RLS ou rede — NÃO retorna fallback. Retorna null para preservar estado.
+        return null;
+      } catch(e){ return null; }
     };
+
+    // Aplica resultado de buildUser preservando o user atual se a build falhou.
+    // É a peça central do fix: nunca rebaixa role do estado para "client" por engano.
+    const applyBuildResult=(built)=>{
+      if (built) setUser(built);
+      // se built===null, mantém prev (não mexe no estado)
+    };
+
     try {
       const projectRef=import.meta.env.VITE_SUPABASE_URL?.match(/\/\/([^.]+)\./)?.[1];
       const key=`sb-${projectRef}-auth-token`;
@@ -1845,21 +1856,45 @@ export default function App() {
         if (valid&&stored?.user) {
           supabase.from("profiles").select("*").eq("id",stored.user.id).maybeSingle()
             .then(({data:profile,error})=>{
-              if (profile&&!error) setUser({...stored.user,name:profile.name||stored.user.email?.split("@")[0]||"Usuário",phone:profile.phone||"",role:profile.role||"client",email:profile.email||stored.user.email||"",company_id:profile.company_id||null,company_name:null,vendedor_id:profile.vendedor_id||null});
-              else setUser({...stored.user,name:stored.user.email?.split("@")[0]||"Usuário",role:"client",vendedor_id:null});
+              if (profile&&!error) {
+                setUser({...stored.user,name:profile.name||stored.user.email?.split("@")[0]||"Usuário",phone:profile.phone||"",role:profile.role||"client",email:profile.email||stored.user.email||"",company_id:profile.company_id||null,company_name:null,vendedor_id:profile.vendedor_id||null});
+              }
+              // Se profile não veio aqui (erro de RLS ou rede), NÃO seta user com role="client".
+              // Deixa o getSession + buildUser/onAuthStateChange completarem com a verdade.
               setAuthLoading(false);
             })
-            .catch(()=>{ setUser({...stored.user,name:stored.user.email?.split("@")[0]||"Usuário",role:"client",vendedor_id:null}); setAuthLoading(false); });
+            .catch(()=>{ setAuthLoading(false); });
           return;
         }
       }
     } catch(e){}
+
     authTimeout=setTimeout(()=>setAuthLoading(false),8000);
-    supabase.auth.getSession().then(async({data:{session}})=>{ clearTimeout(authTimeout); if(session){const u=await buildUser(session);if(u)setUser(u);} setAuthLoading(false); }).catch(()=>{ clearTimeout(authTimeout);setAuthLoading(false); });
+    supabase.auth.getSession().then(async({data:{session}})=>{
+      clearTimeout(authTimeout);
+      if (session) { const u=await buildUser(session); applyBuildResult(u); }
+      setAuthLoading(false);
+    }).catch(()=>{ clearTimeout(authTimeout); setAuthLoading(false); });
+
     const {data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
-      if(event==="SIGNED_IN"&&session){const u=await buildUser(session);if(u)setUser(u);}
-      else if(event==="SIGNED_OUT")setUser(null);
-      else if(event==="TOKEN_REFRESHED"&&session)setUser(prev=>prev?{...prev,...session.user}:prev);
+      // SIGNED_OUT é o ÚNICO evento que limpa o user. Tudo mais preserva ou enriquece.
+      if (event==="SIGNED_OUT") { setUser(null); return; }
+
+      // TOKEN_REFRESHED e USER_UPDATED: NÃO refazem buildUser do zero.
+      // Apenas atualizam o id/email vindos do auth, preservando role/vendedor_id/company_id
+      // que já estão no estado. Esse é o fix do bug "vira cliente depois de inativo".
+      if (event==="TOKEN_REFRESHED" || event==="USER_UPDATED") {
+        if (session?.user) {
+          setUser(prev => prev ? { ...prev, id:session.user.id, email:prev.email||session.user.email } : prev);
+        }
+        return;
+      }
+
+      // SIGNED_IN: roda buildUser. Se falhar, preserva user atual (não rebaixa).
+      if (event==="SIGNED_IN" && session) {
+        const u=await buildUser(session);
+        applyBuildResult(u);
+      }
     });
     return()=>{ clearTimeout(authTimeout);subscription.unsubscribe(); };
   },[]);
