@@ -1055,8 +1055,33 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
 const AdminDashboard = ({ user, orders, setSelectedOrder, setActiveTab, setOrdersFilter }) => {
   const [companies,setCompanies]=useState([]);
   const [dashSearch,setDashSearch]=useState("");
+  const [disponiveis,setDisponiveis]=useState([]);
+  const [claimingId,setClaimingId]=useState(null);
+  const [claimedToast,setClaimedToast]=useState(null);
   const isVendedor = user?.role === "vendedor";
   useEffect(()=>{ supabase.from("companies").select("id,name").then(({data})=>setCompanies(data||[])); },[]);
+
+  const loadDisponiveis=async()=>{
+    if (!isVendedor) return;
+    const {data}=await supabase.from("profiles")
+      .select("id,name,email,phone,created_at")
+      .is("vendedor_id",null)
+      .eq("role","client")
+      .order("created_at",{ascending:false});
+    setDisponiveis(data||[]);
+  };
+  useEffect(()=>{ loadDisponiveis(); },[isVendedor]);
+
+  const handleClaim=async(client)=>{
+    setClaimingId(client.id);
+    try {
+      await supabase.rpc("claim_client",{p_client_id:client.id});
+      setClaimedToast(client.name||client.email||"Cliente");
+      setTimeout(()=>setClaimedToast(null),3500);
+      await loadDisponiveis();
+    } catch(e) { console.error("Erro ao puxar:",e); }
+    setClaimingId(null);
+  };
   const compMap=Object.fromEntries(companies.map(c=>[c.id,c.name]));
   const stats={
     total:orders.length,
@@ -1097,6 +1122,54 @@ const AdminDashboard = ({ user, orders, setSelectedOrder, setActiveTab, setOrder
           <button onClick={()=>{ setOrdersFilter("aguardando"); setActiveTab("orders"); }} style={{background:"var(--yellow)",color:"var(--black)",border:"none",borderRadius:6,padding:"8px 18px",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Ver Aguardando →</button>
         </div>
       )}
+
+      {/* Toast de "puxado!" */}
+      {claimedToast && (
+        <div style={{position:"fixed",top:20,right:20,zIndex:600,background:"#1b5e20",border:"1px solid #4caf72",borderRadius:10,padding:"12px 20px",color:"white",fontSize:14,fontWeight:500,animation:"fadeIn .3s ease"}}>
+          🤝 <strong>{claimedToast}</strong> entrou na sua carteira!
+        </div>
+      )}
+
+      {/* Card de Clientes Disponíveis — só para vendedor */}
+      {isVendedor && (
+        <div className="card" style={{marginBottom:20,borderTop:"3px solid #64b5f6"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+            <div>
+              <div className="barlow" style={{fontSize:20,fontWeight:700}}>🆕 Clientes Disponíveis</div>
+              <div style={{fontSize:13,color:"var(--gray-light)",marginTop:2}}>
+                {disponiveis.length===0
+                  ? "✅ Todos os clientes já têm vendedor"
+                  : `${disponiveis.length} cliente(s) sem vendedor — puxe para sua carteira`}
+              </div>
+            </div>
+          </div>
+          {disponiveis.length>0 && (
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {disponiveis.map(c=>(
+                <div key={c.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 110px",padding:"12px 14px",background:"var(--gray-mid)",borderRadius:8,alignItems:"center",gap:10}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:32,height:32,borderRadius:"50%",background:"#64b5f6",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"white",fontSize:13,flexShrink:0}}>
+                      {(c.name||c.email||"?").charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{fontWeight:500,fontSize:14}}>{c.name||"—"}</div>
+                      <div style={{fontSize:12,color:"var(--gray-light)"}}>{c.email||"—"}</div>
+                    </div>
+                  </div>
+                  <div style={{fontSize:13,color:"var(--gray-light)"}}>{c.phone||"—"}</div>
+                  <button
+                    onClick={()=>handleClaim(c)}
+                    disabled={claimingId===c.id}
+                    style={{background:"var(--orange)",color:"white",border:"none",borderRadius:6,padding:"8px 14px",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,cursor:claimingId===c.id?"wait":"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,opacity:claimingId===c.id?0.6:1,transition:"all .2s"}}>
+                    {claimingId===c.id ? <><div className="spinner" style={{width:13,height:13}}/>...</> : "🤝 Puxar"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="card">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:12,flexWrap:"wrap"}}>
           <div className="barlow" style={{fontSize:20,fontWeight:700,flexShrink:0}}>Pedidos Recentes</div>
