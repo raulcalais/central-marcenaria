@@ -70,6 +70,10 @@ const FontLoader = () => (
     .step-dot{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;transition:all .3s;}
     .upload-zone{border:2px dashed var(--gray);border-radius:12px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;}
     .upload-zone:hover{border-color:var(--yellow);background:rgba(245,184,0,.04);}
+    .upload-zone.dragging{border-color:var(--yellow);background:rgba(245,184,0,.12);transform:scale(1.01);}
+    .priority-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;letter-spacing:.3px;}
+    .priority-alta{background:rgba(245,184,0,.18);color:var(--yellow);border:1px solid rgba(245,184,0,.4);}
+    .priority-urgente{background:rgba(200,16,46,.15);color:#ef5350;border:1px solid rgba(200,16,46,.4);animation:pulseDot 2s infinite;}
     .chat-bubble{max-width:75%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5;word-break:break-word;overflow-wrap:anywhere;}
     .chat-bubble a{color:inherit;text-decoration:underline;}
     .chat-mine a{color:var(--black);}
@@ -284,6 +288,26 @@ const STEPS = [
 ];
 const NEXT_STATUS = { aguardando:"analise", analise:"corte", corte:"filetamento", filetamento:"pronto", pronto:"entregue" };
 
+// Prioridade do pedido (admin/vendedor define; cliente não muda)
+const PRIORITY_CONFIG = {
+  0: { label:"Normal",   icon:"",   className:"" },
+  1: { label:"Alta",     icon:"⚠️", className:"priority-alta" },
+  2: { label:"Urgente",  icon:"🔥", className:"priority-urgente" },
+};
+const PRIORITY_OPTIONS = [
+  { value:0, label:"🟢 Normal",  desc:"Sem prioridade especial" },
+  { value:1, label:"⚠️ Alta",    desc:"Avançar na fila quando possível" },
+  { value:2, label:"🔥 Urgente", desc:"Topo da fila — corte prioritário" },
+];
+
+// Função compartilhada para ordenar pedidos: prioridade desc, depois data desc
+const sortByPriorityThenDate = (a,b) => {
+  const pa = a.priority || 0;
+  const pb = b.priority || 0;
+  if (pa !== pb) return pb - pa;
+  return new Date(b.created_at) - new Date(a.created_at);
+};
+
 // ─── ICONS ────────────────────────────────────────────────────────────────────
 const Icon = ({ name, size=18 }) => {
   const icons = {
@@ -331,6 +355,15 @@ const StatusBadge = ({ status, subStatus }) => {
       {subStatus==="aguardando_chapa" && <span className="badge badge-orange" style={{fontSize:11,padding:"3px 8px"}}>🧱 Aguard. Chapa</span>}
     </span>
   );
+};
+
+// Badge de prioridade — só aparece quando priority > 0
+const PriorityBadge = ({ priority }) => {
+  const p = priority || 0;
+  if (p === 0) return null;
+  const cfg = PRIORITY_CONFIG[p];
+  if (!cfg) return null;
+  return <span className={`priority-badge ${cfg.className}`}>{cfg.icon} {cfg.label}</span>;
 };
 
 const StatusSteps = ({ currentStatus, stepHistory={}, createdAt, subStatus }) => {
@@ -601,21 +634,25 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
                   )}
                   {hasUnread && <span className="msg-dot" title="Nova mensagem"/>}
                 </div>
-                <StatusBadge status={o.status} subStatus={o.sub_status}/>
+                <div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"flex-end"}}>
+                  <PriorityBadge priority={o.priority}/>
+                  <StatusBadge status={o.status} subStatus={o.sub_status}/>
+                </div>
               </div>
-              <div style={{display:"flex",alignItems:"flex-start",gap:2}}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:2}}>
                 {STEPS.map((s,i)=>{
                   const onHold = o.sub_status==="aguardando_chapa";
+                  // Cor da etapa: concluída=verde, atual=amarelo (laranja se aguardando chapa), futura=cinza
                   const barColor = i<step ? "#4caf72"
                                  : (i===step && onHold) ? "var(--orange)"
-                                 : i===step ? "#66bb6a"
+                                 : i===step ? "var(--yellow)"
                                  : "var(--gray-mid)";
                   const labelColor = i===step && onHold ? "var(--orange)"
-                                   : i===step ? "#66bb6a"
+                                   : i===step ? "var(--yellow)"
                                    : i<step ? "#4caf72"
                                    : "var(--gray-light)";
                   const shadow = i===step && onHold ? "0 0 8px rgba(232,119,34,.5)"
-                               : i===step ? "0 0 8px rgba(102,187,106,.5)"
+                               : i===step ? "0 0 8px rgba(245,184,0,.5)"
                                : "none";
                   return (
                     <div key={s.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
@@ -706,7 +743,76 @@ const NewOrder = ({ user, onSubmit }) => {
     if (c) setClientName(c.name||c.email||"");
   };
 
-  const handleFileAdd=(e,type)=>{ const arr=Array.from(e.target.files||[]); if(type==="file") setFiles(p=>[...p,...arr]); else setImages(p=>[...p,...arr]); };
+  // Aceita File[] ou FileList — separa imagens automaticamente por mime-type.
+  // Usado pelo input clássico, drag-and-drop e paste.
+  const addFiles = (incoming) => {
+    const arr = Array.from(incoming || []);
+    if (arr.length === 0) return;
+    const newImgs = [];
+    const newDocs = [];
+    arr.forEach(f => {
+      if (f.type && f.type.startsWith("image/")) newImgs.push(f);
+      else newDocs.push(f);
+    });
+    if (newImgs.length) setImages(p=>[...p,...newImgs]);
+    if (newDocs.length) setFiles(p=>[...p,...newDocs]);
+  };
+
+  const handleFileAdd = (e, type) => {
+    const arr = Array.from(e.target.files||[]);
+    if (type==="file") setFiles(p=>[...p,...arr]);
+    else setImages(p=>[...p,...arr]);
+  };
+
+  // Estados de drag-over por zona (pra feedback visual)
+  const [dragFile,setDragFile]=useState(false);
+  const [dragImg,setDragImg]=useState(false);
+
+  // Constrói os handlers de drag/drop pra uma upload-zone.
+  // strictType: "image" → aceita só imagens; "file" → aceita só não-imagens; null → tudo.
+  const buildDropHandlers = (setDragState, strictType) => ({
+    onDragOver: (e) => { e.preventDefault(); e.stopPropagation(); setDragState(true); },
+    onDragEnter: (e) => { e.preventDefault(); e.stopPropagation(); setDragState(true); },
+    onDragLeave: (e) => { e.preventDefault(); e.stopPropagation(); setDragState(false); },
+    onDrop: (e) => {
+      e.preventDefault(); e.stopPropagation(); setDragState(false);
+      const dropped = Array.from(e.dataTransfer?.files||[]);
+      if (dropped.length === 0) return;
+      if (strictType === "image") {
+        const imgs = dropped.filter(f=>f.type?.startsWith("image/"));
+        if (imgs.length) setImages(p=>[...p,...imgs]);
+      } else if (strictType === "file") {
+        const docs = dropped.filter(f=>!f.type?.startsWith("image/"));
+        if (docs.length) setFiles(p=>[...p,...docs]);
+      } else {
+        addFiles(dropped);
+      }
+    },
+  });
+
+  // Cola da área de transferência (Ctrl+V): pega prints e arquivos copiados,
+  // só dispara fora de inputs/textareas pra não atrapalhar digitação.
+  useEffect(()=>{
+    const onPaste = (e) => {
+      const tgt = e.target;
+      if (tgt && (tgt.tagName==="INPUT" || tgt.tagName==="TEXTAREA" || tgt.isContentEditable)) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const pasted = [];
+      for (const item of items) {
+        if (item.kind === "file") {
+          const f = item.getAsFile();
+          if (f) pasted.push(f);
+        }
+      }
+      if (pasted.length > 0) {
+        e.preventDefault();
+        addFiles(pasted);
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  },[]);
 
   const handleSubmit = async () => {
     // Validação por papel:
@@ -867,11 +973,11 @@ const NewOrder = ({ user, onSubmit }) => {
 
             <div className="card">
               <div className="barlow" style={{fontSize:17,fontWeight:700,marginBottom:12}}>📁 Arquivos de Relatórios</div>
-              <div className="upload-zone" onClick={()=>fileRef.current.click()}>
+              <div className={`upload-zone${dragFile?" dragging":""}`} onClick={()=>fileRef.current.click()} {...buildDropHandlers(setDragFile,"file")}>
                 <input ref={fileRef} type="file" multiple style={{display:"none"}} onChange={e=>handleFileAdd(e,"file")} accept=".dxf,.cnc,.dwg,.pdf,.svg,.nc,.zip"/>
                 <div style={{fontSize:28,marginBottom:6}}>📂</div>
-                <div style={{fontWeight:600,marginBottom:3}}>Clique para enviar arquivos</div>
-                <div style={{fontSize:12,color:"var(--gray-light)"}}>DXF, CNC, DWG, PDF, SVG, NC, ZIP</div>
+                <div style={{fontWeight:600,marginBottom:3}}>{dragFile?"Solte os arquivos aqui":"Clique, arraste ou cole arquivos"}</div>
+                <div style={{fontSize:12,color:"var(--gray-light)"}}>DXF, CNC, DWG, PDF, SVG, NC, ZIP · Ctrl+V também funciona</div>
               </div>
               {files.length>0 && <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6}}>
                 {files.map((f,i)=>(
@@ -886,11 +992,11 @@ const NewOrder = ({ user, onSubmit }) => {
 
             <div className="card">
               <div className="barlow" style={{fontSize:17,fontWeight:700,marginBottom:12}}>🖼️ Imagens do Projeto</div>
-              <div className="upload-zone" onClick={()=>imgRef.current.click()}>
+              <div className={`upload-zone${dragImg?" dragging":""}`} onClick={()=>imgRef.current.click()} {...buildDropHandlers(setDragImg,"image")}>
                 <input ref={imgRef} type="file" multiple style={{display:"none"}} onChange={e=>handleFileAdd(e,"image")} accept="image/*"/>
                 <div style={{fontSize:28,marginBottom:6}}>🖼️</div>
-                <div style={{fontWeight:600,marginBottom:3}}>Adicionar imagens</div>
-                <div style={{fontSize:12,color:"var(--gray-light)"}}>JPG, PNG, WEBP</div>
+                <div style={{fontWeight:600,marginBottom:3}}>{dragImg?"Solte as imagens aqui":"Clique, arraste ou cole imagens"}</div>
+                <div style={{fontSize:12,color:"var(--gray-light)"}}>JPG, PNG, WEBP · Print da tela com Ctrl+V também funciona</div>
               </div>
               {images.length>0 && <div style={{marginTop:10,display:"flex",gap:8,flexWrap:"wrap"}}>
                 {images.map((img,i)=>(
@@ -975,8 +1081,9 @@ const OrderList = ({ user, orders, setSelectedOrder, setActiveTab, initialFilter
         ) : filtered.map(o=>(
           <div key={o.id} className="table-row" style={{gridTemplateColumns:isAdmin?"2fr 130px 150px 70px":"2fr 150px 70px",cursor:"pointer"}} onClick={()=>{setSelectedOrder(o);setActiveTab("order-detail");}}>
             <div>
-              <div style={{fontWeight:500,fontSize:14,display:"flex",alignItems:"center",gap:8}}>
+              <div style={{fontWeight:500,fontSize:14,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <Highlight text={o.title} term={search}/>
+                <PriorityBadge priority={o.priority}/>
                 {(o.unread_count||0)>0 && <span className="msg-dot" title="Nova mensagem"/>}
               </div>
               <div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>
@@ -1103,19 +1210,58 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
     try { await supabase.from("orders").update({sub_status:newSub}).eq("id",currentOrder.id); setCurrentOrder(prev=>({...prev,sub_status:newSub})); } catch(e){}
   };
 
-  const handleAdvance=async()=>{
-    const next=NEXT_STATUS[currentOrder.status]; if(!next) return;
+  // Modal de confirmação para qualquer mudança de status (avançar ou seleção direta).
+  // Evita cliques acidentais que registram timestamp e impactam o lead time.
+  const [confirmStatus,setConfirmStatus]=useState(null); // status alvo (string) ou null
+  const [advancing,setAdvancing]=useState(false);
+
+  const requestStatusChange = (targetStatus) => {
+    if (targetStatus === currentOrder.status) return; // não confirma se já está nesse status
+    setConfirmStatus(targetStatus);
+  };
+
+  const performStatusChange = async (target) => {
+    setAdvancing(true);
     try {
       const now=new Date().toISOString();
       const newHistory={...(currentOrder.step_history||{})};
       const currentStep=STATUS_CONFIG[currentOrder.status]?.step??0;
-      const nextStep=STATUS_CONFIG[next]?.step??0;
-      for (let i=currentStep; i<nextStep; i++) { const sk=STEPS[i]?.key; if(sk&&!newHistory[sk]) newHistory[sk]=now; }
-      newHistory[next]=now;
-      await supabase.from("orders").update({status:next,step_history:newHistory,sub_status:null}).eq("id",currentOrder.id);
-      setCurrentOrder(prev=>({...prev,status:next,step_history:newHistory,sub_status:null}));
-      onUpdateStatus(currentOrder.id,next,()=>{},newHistory);
-    } catch(e){}
+      const nextStep=STATUS_CONFIG[target]?.step??0;
+      // Se está avançando, marca timestamps das etapas intermediárias que ainda não foram registradas
+      if (nextStep > currentStep) {
+        for (let i=currentStep; i<nextStep; i++) { const sk=STEPS[i]?.key; if(sk&&!newHistory[sk]) newHistory[sk]=now; }
+      }
+      newHistory[target]=now;
+      const isAdvancing = nextStep > currentStep;
+      // Limpa sub_status só ao avançar (volta atrás preserva o aguardando_chapa)
+      const updateData = isAdvancing
+        ? { status:target, step_history:newHistory, sub_status:null }
+        : { status:target, step_history:newHistory };
+      await supabase.from("orders").update(updateData).eq("id",currentOrder.id);
+      setCurrentOrder(prev=>({...prev,...updateData}));
+      onUpdateStatus(currentOrder.id,target,()=>{},newHistory);
+    } catch(e) { console.error("Erro ao mudar status:",e); }
+    setAdvancing(false);
+    setConfirmStatus(null);
+  };
+
+  const handleAdvance = () => {
+    const next=NEXT_STATUS[currentOrder.status]; if(!next) return;
+    requestStatusChange(next);
+  };
+
+  // Modal de prioridade (admin/vendedor)
+  const [showPriorityModal,setShowPriorityModal]=useState(false);
+  const [savingPriority,setSavingPriority]=useState(false);
+
+  const handleSetPriority = async (newPriority) => {
+    setSavingPriority(true);
+    try {
+      await supabase.from("orders").update({priority:newPriority}).eq("id",currentOrder.id);
+      setCurrentOrder(prev=>({...prev,priority:newPriority}));
+    } catch(e) { console.error("Erro ao definir prioridade:",e); }
+    setSavingPriority(false);
+    setShowPriorityModal(false);
   };
 
   const handleDeleteOrder = async () => {
@@ -1195,18 +1341,105 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
         </div>
       </Modal>
 
+      {/* Modal de confirmação de mudança de status — evita cliques acidentais */}
+      <Modal open={!!confirmStatus} onClose={()=>!advancing && setConfirmStatus(null)} zIndex={9200}>
+        {confirmStatus && (() => {
+          const fromCfg = STATUS_CONFIG[currentOrder.status];
+          const toCfg = STATUS_CONFIG[confirmStatus];
+          const fromStep = fromCfg?.step ?? 0;
+          const toStep = toCfg?.step ?? 0;
+          const isAdvancing = toStep > fromStep;
+          const isReverting = toStep < fromStep;
+          return (
+            <div style={{background:"var(--gray-dark)",border:"1px solid rgba(245,184,0,.3)",borderRadius:14,padding:28,maxWidth:460,width:"min(460px,92vw)"}}>
+              <div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:6}}>
+                {isAdvancing ? "⏩ Avançar Status" : isReverting ? "⏪ Voltar Status" : "🔄 Mudar Status"}
+              </div>
+              <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:18}}>Confirme a mudança abaixo. A data e hora atuais serão registradas no histórico.</div>
+
+              <div style={{display:"flex",alignItems:"center",gap:14,padding:"14px",background:"var(--gray-mid)",borderRadius:10,marginBottom:14}}>
+                <div style={{flex:1,textAlign:"center"}}>
+                  <div style={{fontSize:10,color:"var(--gray-light)",textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>De</div>
+                  <div style={{fontSize:13,fontWeight:600}}>{fromCfg?.icon} {fromCfg?.label}</div>
+                </div>
+                <div style={{fontSize:22,color:"var(--yellow)"}}>→</div>
+                <div style={{flex:1,textAlign:"center"}}>
+                  <div style={{fontSize:10,color:"var(--gray-light)",textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>Para</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"var(--yellow)"}}>{toCfg?.icon} {toCfg?.label}</div>
+                </div>
+              </div>
+
+              {isAdvancing && (
+                <div style={{background:"rgba(245,184,0,.06)",border:"1px solid rgba(245,184,0,.2)",borderRadius:8,padding:"10px 14px",fontSize:12,color:"var(--gray-light)",lineHeight:1.7,marginBottom:18}}>
+                  ⏱️ <strong style={{color:"var(--white)"}}>Atenção:</strong> esta ação registra timestamps que afetam o cálculo de lead time. Confirme apenas se a etapa realmente foi iniciada/concluída.
+                </div>
+              )}
+              {isReverting && (
+                <div style={{background:"rgba(232,119,34,.06)",border:"1px solid rgba(232,119,34,.2)",borderRadius:8,padding:"10px 14px",fontSize:12,color:"var(--orange)",lineHeight:1.7,marginBottom:18}}>
+                  ⚠️ Você está retornando para uma etapa anterior. Os timestamps das etapas posteriores serão preservados no histórico.
+                </div>
+              )}
+
+              <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+                <button className="btn-ghost" onClick={()=>setConfirmStatus(null)} disabled={advancing}>Cancelar</button>
+                <button className="btn-primary" onClick={()=>performStatusChange(confirmStatus)} disabled={advancing}>
+                  {advancing ? <><div className="spinner"/>Salvando...</> : "✅ Confirmar"}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
+
+      {/* Modal de prioridade — admin/vendedor define ordem de fila */}
+      <Modal open={showPriorityModal} onClose={()=>!savingPriority && setShowPriorityModal(false)} zIndex={9100}>
+        <div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:460,width:"min(460px,92vw)"}}>
+          <div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4}}>🔥 Prioridade do Pedido</div>
+          <div style={{fontSize:12,color:"var(--gray-light)",marginBottom:18,background:"var(--gray-mid)",borderRadius:6,padding:"6px 10px",display:"inline-block"}}>{currentOrder.display_id} · {currentOrder.title}</div>
+          <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:14,lineHeight:1.6}}>Pedidos prioritários sobem na fila — útil quando há urgência ou compromisso de prazo.</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {PRIORITY_OPTIONS.map(opt => {
+              const active = (currentOrder.priority||0) === opt.value;
+              const accent = opt.value===2 ? "#ef5350" : opt.value===1 ? "var(--yellow)" : "#4caf72";
+              return (
+                <button key={opt.value} onClick={()=>handleSetPriority(opt.value)} disabled={savingPriority}
+                  style={{padding:"12px 14px",borderRadius:8,border:`1.5px solid ${active?accent:"var(--gray)"}`,background:active?`${accent}1F`:"transparent",color:active?accent:"var(--white)",cursor:savingPriority?"wait":"pointer",textAlign:"left",fontFamily:"DM Sans,sans-serif",fontSize:14,display:"flex",alignItems:"center",gap:10,transition:"all .2s"}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600}}>{opt.label}</div>
+                    <div style={{fontSize:11,color:"var(--gray-light)",marginTop:2}}>{opt.desc}</div>
+                  </div>
+                  {active && <span style={{color:accent}}>◉</span>}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
+            <button className="btn-ghost" onClick={()=>setShowPriorityModal(false)} disabled={savingPriority}>Fechar</button>
+          </div>
+        </div>
+      </Modal>
+
       <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:24,flexWrap:"wrap"}}>
         <button className="btn-ghost" onClick={onBack} style={{padding:"8px 14px"}}><Icon name="arrow" size={14}/>Voltar</button>
         <div style={{flex:1}}>
           <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
             <div className="barlow" style={{fontSize:26,fontWeight:800}}>{currentOrder.title}</div>
             <StatusBadge status={currentOrder.status} subStatus={currentOrder.sub_status}/>
+            <PriorityBadge priority={currentOrder.priority}/>
             {canEdit && (
               <button onClick={openEditModal} title="Editar pedido"
                 style={{background:"transparent",border:"1.5px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"4px 10px",display:"inline-flex",alignItems:"center",gap:5,fontSize:12,fontFamily:"DM Sans,sans-serif",transition:"all .2s"}}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--yellow)";e.currentTarget.style.color="var(--yellow)";}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--gray)";e.currentTarget.style.color="var(--gray-light)";}}>
                 ✏️ Editar
+              </button>
+            )}
+            {canManage && (
+              <button onClick={()=>setShowPriorityModal(true)} title="Definir prioridade"
+                style={{background:"transparent",border:"1.5px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"4px 10px",display:"inline-flex",alignItems:"center",gap:5,fontSize:12,fontFamily:"DM Sans,sans-serif",transition:"all .2s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--orange)";e.currentTarget.style.color="var(--orange)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--gray)";e.currentTarget.style.color="var(--gray-light)";}}>
+                🔥 Prioridade
               </button>
             )}
           </div>
@@ -1347,7 +1580,7 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
               <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:12}}>⚙️ Atualizar Status</div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
                 {Object.entries(STATUS_CONFIG).map(([key,cfg])=>(
-                  <button key={key} onClick={()=>onUpdateStatus(currentOrder.id,key,setCurrentOrder,currentOrder.step_history)} style={{padding:"10px 14px",borderRadius:8,border:`1.5px solid ${currentOrder.status===key?"var(--yellow)":"var(--gray)"}`,background:currentOrder.status===key?"rgba(245,184,0,.12)":"transparent",color:currentOrder.status===key?"var(--yellow)":"var(--gray-light)",fontSize:13,cursor:"pointer",textAlign:"left",fontFamily:"DM Sans,sans-serif",transition:"all .2s",display:"flex",alignItems:"center",gap:8}}>
+                  <button key={key} onClick={()=>requestStatusChange(key)} style={{padding:"10px 14px",borderRadius:8,border:`1.5px solid ${currentOrder.status===key?"var(--yellow)":"var(--gray)"}`,background:currentOrder.status===key?"rgba(245,184,0,.12)":"transparent",color:currentOrder.status===key?"var(--yellow)":"var(--gray-light)",fontSize:13,cursor:"pointer",textAlign:"left",fontFamily:"DM Sans,sans-serif",transition:"all .2s",display:"flex",alignItems:"center",gap:8}}>
                     {cfg.icon} {cfg.label}{currentOrder.status===key&&<span style={{marginLeft:"auto"}}>◉</span>}
                   </button>
                 ))}
@@ -1573,8 +1806,9 @@ const AdminDashboard = ({ user, orders, setSelectedOrder, setActiveTab, setOrder
               onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,.03)"}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <div>
-                <div style={{fontWeight:500,fontSize:13,display:"flex",alignItems:"center",gap:6}}>
+                <div style={{fontWeight:500,fontSize:13,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                   <Highlight text={o.title} term={dashSearch}/>
+                  <PriorityBadge priority={o.priority}/>
                   {(o.unread_count||0)>0&&<span className="msg-dot" title="Nova mensagem"/>}
                 </div>
                 <div style={{fontSize:11,color:"var(--gray-light)",marginTop:2}}>{o.display_id}</div>
@@ -2196,7 +2430,11 @@ export default function App() {
     if(!user) return;
     setOrdersLoading(true);
     try {
-      let query=supabase.from("orders").select("*").order("created_at",{ascending:false});
+      // Ordena no banco: prioridade desc, depois data desc.
+      // priority pode ser NULL em pedidos antigos — nullsLast trata como menor que 0.
+      let query=supabase.from("orders").select("*")
+        .order("priority",{ascending:false,nullsFirst:false})
+        .order("created_at",{ascending:false});
       if (user.role==="admin") {
         // admin vê tudo
       } else if (user.role==="vendedor") {
@@ -2214,10 +2452,11 @@ export default function App() {
         const withUnread=list.map(o=>{
           const lastRead = isInternal ? o.last_read_admin_at : o.last_read_client_at;
           const lastReadDate=lastRead?new Date(lastRead):new Date(0);
-          // mensagens não-mais (sender_id !== user.id) que chegaram depois da última leitura
           const unread=(msgs||[]).filter(m=>m.order_id===o.id&&m.sender_id!==user.id&&new Date(m.created_at)>lastReadDate).length;
           return {...o,unread_count:unread};
         });
+        // Garante a ordem mesmo se o DB falhar em alguma coluna NULL antiga
+        withUnread.sort(sortByPriorityThenDate);
         setOrders(withUnread);
       } else setOrders(list);
     } catch(e){ setOrders([]); }
