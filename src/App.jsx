@@ -437,6 +437,9 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
                 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                   <span style={{fontWeight:600,fontSize:14}}>{o.title}</span>
                   <span style={{fontSize:12,color:"var(--gray-light)"}}>{o.display_id}</span>
+                  {user.company_id && o.client_id!==user.id && (
+                    <span style={{fontSize:11,color:"var(--yellow)",fontWeight:600,background:"rgba(245,184,0,.1)",padding:"2px 7px",borderRadius:10}}>👤 {o.client_name}</span>
+                  )}
                   {hasUnread && <span className="msg-dot" title="Nova mensagem"/>}
                 </div>
                 <StatusBadge status={o.status} subStatus={o.sub_status}/>
@@ -480,8 +483,9 @@ const NewOrder = ({ user, onSubmit }) => {
   const [loading,setLoading]=useState(false);
   const [submitted,setSubmitted]=useState(null);
 
-  // Entrega C: carteira do vendedor
+  // Entrega C: carteira do vendedor + clientes disponíveis
   const [carteira,setCarteira]=useState([]);
+  const [disponiveis,setDisponiveis]=useState([]);
   const [selectedClientId,setSelectedClientId]=useState("");
   const [carteiraLoading,setCarteiraLoading]=useState(false);
 
@@ -490,17 +494,19 @@ const NewOrder = ({ user, onSubmit }) => {
   useEffect(()=>{
     if (!isVendedor) return;
     setCarteiraLoading(true);
-    supabase.from("profiles")
-      .select("id,name,email,phone")
-      .eq("vendedor_id",user.id)
-      .eq("role","client")
-      .order("name")
-      .then(({data})=>{ setCarteira(data||[]); setCarteiraLoading(false); });
+    Promise.all([
+      supabase.from("profiles").select("id,name,email,phone").eq("vendedor_id",user.id).eq("role","client").order("name"),
+      supabase.from("profiles").select("id,name,email,phone").is("vendedor_id",null).eq("role","client").order("name"),
+    ]).then(([carResp,dispResp])=>{
+      setCarteira(carResp.data||[]);
+      setDisponiveis(dispResp.data||[]);
+      setCarteiraLoading(false);
+    });
   },[isVendedor,user.id]);
 
   const handleClientSelect = (id) => {
     setSelectedClientId(id);
-    const c = carteira.find(c=>c.id===id);
+    const c = [...carteira,...disponiveis].find(c=>c.id===id);
     if (c) setClientName(c.name||c.email||"");
   };
 
@@ -518,6 +524,14 @@ const NewOrder = ({ user, onSubmit }) => {
       const ordClientId    = isVendedor ? selectedClientId : user.id;
       const ordClientName  = isVendedor ? clientName : (user.name||user.email);
       const ordVendedorId  = isVendedor ? user.id : (user.vendedor_id||null);
+
+      // Se o vendedor escolheu cliente "sem vendedor", puxa para a carteira dele
+      if (isVendedor && selectedClientId) {
+        const isFromCarteira = carteira.some(c => c.id === selectedClientId);
+        if (!isFromCarteira) {
+          await supabase.rpc("claim_client",{ p_client_id: selectedClientId });
+        }
+      }
 
       const {data:order,error} = await supabase.from("orders").insert({
         display_id,
@@ -593,23 +607,40 @@ const NewOrder = ({ user, onSubmit }) => {
                 <div className="barlow" style={{fontSize:17,fontWeight:700,marginBottom:12,color:"var(--orange)"}}>👤 Cliente do Pedido *</div>
                 {carteiraLoading ? (
                   <div style={{color:"var(--gray-light)",fontSize:13}}>Carregando carteira...</div>
-                ) : carteira.length===0 ? (
+                ) : (carteira.length===0 && disponiveis.length===0) ? (
                   <div style={{background:"rgba(232,119,34,.08)",border:"1px solid rgba(232,119,34,.2)",borderRadius:8,padding:"12px 14px",fontSize:13,color:"var(--orange)"}}>
-                    ⚠️ Você não tem clientes na carteira ainda. Peça ao admin para vincular clientes ao seu perfil na página Clientes.
+                    ⚠️ Nenhum cliente disponível ainda. Peça ao admin para cadastrar clientes ou aguarde clientes se cadastrarem no portal.
                   </div>
                 ) : (
                   <>
                     <select className="input-field" value={selectedClientId} onChange={e=>handleClientSelect(e.target.value)}>
                       <option value="">Selecione o cliente...</option>
-                      {carteira.map(c=>(
-                        <option key={c.id} value={c.id}>{c.name||c.email}{c.phone?` · ${c.phone}`:""}</option>
-                      ))}
+                      {carteira.length>0 && (
+                        <optgroup label="🤝 Minha Carteira">
+                          {carteira.map(c=>(
+                            <option key={c.id} value={c.id}>{c.name||c.email}{c.phone?` · ${c.phone}`:""}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {disponiveis.length>0 && (
+                        <optgroup label="🆕 Disponíveis (sem vendedor)">
+                          {disponiveis.map(c=>(
+                            <option key={c.id} value={c.id}>{c.name||c.email}{c.phone?` · ${c.phone}`:""}</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
-                    {selectedClientId && (
-                      <div style={{marginTop:8,fontSize:12,color:"var(--gray-light)"}}>
-                        ✅ Pedido será criado em nome de <strong style={{color:"var(--white)"}}>{clientName}</strong>
-                      </div>
-                    )}
+                    {selectedClientId && (() => {
+                      const isFromCarteira = carteira.some(c=>c.id===selectedClientId);
+                      return (
+                        <div style={{marginTop:8,fontSize:12,color:"var(--gray-light)"}}>
+                          {isFromCarteira
+                            ? <>✅ Pedido será criado em nome de <strong style={{color:"var(--white)"}}>{clientName}</strong></>
+                            : <>🤝 <strong style={{color:"var(--orange)"}}>{clientName}</strong> entrará na sua carteira ao criar este pedido.</>
+                          }
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </div>
@@ -745,6 +776,7 @@ const OrderList = ({ user, orders, setSelectedOrder, setActiveTab, initialFilter
               </div>
               <div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>
                 {o.display_id} · {new Date(o.created_at).toLocaleDateString("pt-BR")}
+                {!isAdmin && user.company_id && o.client_id!==user.id && <span style={{marginLeft:8,color:"var(--yellow)",fontWeight:600}}>· 👤 {o.client_name}</span>}
               </div>
             </div>
             {isAdmin&&<div style={{fontSize:13}}><Highlight text={o.client_name||""} term={search}/></div>}
@@ -1019,10 +1051,11 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
   );
 };
 
-// ─── ADMIN DASHBOARD ──────────────────────────────────────────────────────────
-const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilter }) => {
+// ─── ADMIN DASHBOARD (também usado pelo Vendedor para visão da carteira) ──
+const AdminDashboard = ({ user, orders, setSelectedOrder, setActiveTab, setOrdersFilter }) => {
   const [companies,setCompanies]=useState([]);
   const [dashSearch,setDashSearch]=useState("");
+  const isVendedor = user?.role === "vendedor";
   useEffect(()=>{ supabase.from("companies").select("id,name").then(({data})=>setCompanies(data||[])); },[]);
   const compMap=Object.fromEntries(companies.map(c=>[c.id,c.name]));
   const stats={
@@ -1036,8 +1069,17 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilte
   return (
     <div>
       <div style={{marginBottom:24}}>
-        <div className="barlow" style={{fontSize:36,fontWeight:800}}>Painel <span style={{color:"var(--yellow)"}}>Central 4.0</span></div>
-        <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>Visão geral de todos os pedidos.</p>
+        {isVendedor ? (
+          <>
+            <div className="barlow" style={{fontSize:36,fontWeight:800}}>Minha <span style={{color:"var(--orange)"}}>Carteira</span></div>
+            <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>Pedidos dos clientes vinculados a você.</p>
+          </>
+        ) : (
+          <>
+            <div className="barlow" style={{fontSize:36,fontWeight:800}}>Painel <span style={{color:"var(--yellow)"}}>Central 4.0</span></div>
+            <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>Visão geral de todos os pedidos.</p>
+          </>
+        )}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:20}}>
         {[["Total",stats.total,"📦","var(--yellow)"],["Aguardando",stats.aguardando,"⏳","#64b5f6"],["Em Produção",stats.prod,"🪚","var(--orange)"],["Prontos",stats.prontos,"✅","#4caf72"]].map(([l,v,ic,c])=>(
@@ -1620,13 +1662,13 @@ export default function App() {
     if(ordersLoading && activeTab!=="new-order") return <Loading text="Carregando pedidos..."/>;
 
     if(user.role==="admin"){
-      if(activeTab==="dashboard") return <AdminDashboard orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} setOrdersFilter={setOrdersFilter}/>;
+      if(activeTab==="dashboard") return <AdminDashboard user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} setOrdersFilter={setOrdersFilter}/>;
       if(activeTab==="orders") return <OrderList user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} initialFilter={ordersFilter}/>;
       if(activeTab==="users") return <UsersPage orders={orders}/>;
       if(activeTab==="vendedores") return <VendedoresPage/>;
       if(activeTab==="companies") return <CompaniesPage/>;
     } else if(user.role==="vendedor"){
-      if(activeTab==="dashboard") return <ClientDashboard user={user} orders={orders} setActiveTab={setActiveTab} setSelectedOrder={setSelectedOrder}/>;
+      if(activeTab==="dashboard") return <AdminDashboard user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} setOrdersFilter={setOrdersFilter}/>;
       if(activeTab==="new-order") return <NewOrder user={user} onSubmit={()=>{loadOrders();setActiveTab("orders");}}/>;
       if(activeTab==="orders") return <OrderList user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} initialFilter="all"/>;
     } else {
