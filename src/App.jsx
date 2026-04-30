@@ -295,9 +295,9 @@ const PRIORITY_CONFIG = {
   2: { label:"Urgente",  icon:"🔥", className:"priority-urgente" },
 };
 const PRIORITY_OPTIONS = [
-  { value:0, label:"🟢 Normal",  desc:"Sem prioridade especial" },
-  { value:1, label:"⚠️ Alta",    desc:"Avançar na fila quando possível" },
-  { value:2, label:"🔥 Urgente", desc:"Topo da fila — corte prioritário" },
+  { value:0, label:"🟢 Normal",  desc:"Sem indicação especial" },
+  { value:1, label:"⚠️ Alta",    desc:"Quero que saia antes dos meus pedidos normais" },
+  { value:2, label:"🔥 Urgente", desc:"Esse é o que mais preciso pronto primeiro" },
 ];
 
 // Função compartilhada para ordenar pedidos: prioridade desc, depois data desc
@@ -583,6 +583,13 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
   const pedidosAtivos = orders.filter(o=>o.status!=="entregue");
   const stepIndex = (status) => STATUS_CONFIG[status]?.step ?? 0;
 
+  // Quantos pedidos da lista "Em Andamento" mostrar de uma vez. Usuário pode expandir.
+  const PAGE_SIZE = 5;
+  const [displayCount,setDisplayCount]=useState(PAGE_SIZE);
+  const visiblePedidos = pedidosAtivos.slice(0, displayCount);
+  const hiddenCount = pedidosAtivos.length - displayCount;
+  const isExpanded = displayCount >= pedidosAtivos.length && pedidosAtivos.length > PAGE_SIZE;
+
   return (
     <div>
       <div style={{marginBottom:20}}>
@@ -620,7 +627,7 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
             <div>Nenhum pedido em andamento.</div>
             <button className="btn-primary" style={{marginTop:14}} onClick={()=>setActiveTab("new-order")}><Icon name="plus" size={16}/>Criar Primeiro Pedido</button>
           </div>
-        ) : pedidosAtivos.slice(0,5).map(o=>{
+        ) : visiblePedidos.map(o=>{
           const step=stepIndex(o.status);
           const hasUnread=(o.unread_count||0)>0;
           return (
@@ -666,6 +673,26 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
             </div>
           );
         })}
+        {/* Paginação: mostra "carregar mais" quando há pedidos escondidos, ou "mostrar menos" quando tudo aberto */}
+        {pedidosAtivos.length > PAGE_SIZE && (
+          <div style={{display:"flex",gap:10,justifyContent:"center",alignItems:"center",padding:"14px 0 4px",flexWrap:"wrap"}}>
+            {hiddenCount > 0 && (
+              <>
+                <button className="btn-ghost" onClick={()=>setDisplayCount(c=>c+PAGE_SIZE)} style={{fontSize:13}}>
+                  ▼ Carregar mais ({Math.min(PAGE_SIZE,hiddenCount)} de {hiddenCount} restantes)
+                </button>
+                <button className="btn-ghost" onClick={()=>setDisplayCount(pedidosAtivos.length)} style={{fontSize:13,borderColor:"var(--yellow)",color:"var(--yellow)"}}>
+                  Mostrar todos ({pedidosAtivos.length})
+                </button>
+              </>
+            )}
+            {isExpanded && (
+              <button className="btn-ghost" onClick={()=>setDisplayCount(PAGE_SIZE)} style={{fontSize:13}}>
+                ▲ Mostrar menos
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <div className="card" style={{background:"linear-gradient(135deg,rgba(245,184,0,.08),rgba(26,77,46,.12))",border:"1px solid rgba(245,184,0,.2)"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1396,7 +1423,11 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
         <div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:460,width:"min(460px,92vw)"}}>
           <div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4}}>🔥 Prioridade do Pedido</div>
           <div style={{fontSize:12,color:"var(--gray-light)",marginBottom:18,background:"var(--gray-mid)",borderRadius:6,padding:"6px 10px",display:"inline-block"}}>{currentOrder.display_id} · {currentOrder.title}</div>
-          <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:14,lineHeight:1.6}}>Pedidos prioritários sobem na fila — útil quando há urgência ou compromisso de prazo.</div>
+          <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:14,lineHeight:1.6}}>
+            {canManage
+              ? "Indica a ordem que o cliente quer que seus pedidos sejam cortados quando chegar a vez dele na fila."
+              : "Quando seus pedidos chegarem na fila de corte, qual deles você quer que seja feito primeiro?"}
+          </div>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {PRIORITY_OPTIONS.map(opt => {
               const active = (currentOrder.priority||0) === opt.value;
@@ -1434,14 +1465,15 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
                 ✏️ Editar
               </button>
             )}
-            {canManage && (
-              <button onClick={()=>setShowPriorityModal(true)} title="Definir prioridade"
-                style={{background:"transparent",border:"1.5px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"4px 10px",display:"inline-flex",alignItems:"center",gap:5,fontSize:12,fontFamily:"DM Sans,sans-serif",transition:"all .2s"}}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--orange)";e.currentTarget.style.color="var(--orange)";}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--gray)";e.currentTarget.style.color="var(--gray-light)";}}>
-                🔥 Prioridade
-              </button>
-            )}
+            {/* Prioridade fica disponível para todos: cliente indica a ordem que prefere
+                que seus próprios pedidos sejam cortados; admin/vendedor pode ajustar.
+                A RLS do banco garante que só quem tem permissão de UPDATE consegue salvar. */}
+            <button onClick={()=>setShowPriorityModal(true)} title="Definir prioridade"
+              style={{background:"transparent",border:"1.5px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"4px 10px",display:"inline-flex",alignItems:"center",gap:5,fontSize:12,fontFamily:"DM Sans,sans-serif",transition:"all .2s"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--orange)";e.currentTarget.style.color="var(--orange)";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--gray)";e.currentTarget.style.color="var(--gray-light)";}}>
+              🔥 Prioridade
+            </button>
           </div>
           <div style={{fontSize:13,color:"var(--gray-light)",marginTop:2}}>{currentOrder.display_id} · {currentOrder.client_name} · {new Date(currentOrder.created_at).toLocaleDateString("pt-BR")}</div>
         </div>
