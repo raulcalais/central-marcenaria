@@ -483,9 +483,8 @@ const NewOrder = ({ user, onSubmit }) => {
   const [loading,setLoading]=useState(false);
   const [submitted,setSubmitted]=useState(null);
 
-  // Entrega C: carteira do vendedor + clientes disponíveis
+  // Carteira do vendedor: PF + funcionários de empresas que ele atende
   const [carteira,setCarteira]=useState([]);
-  const [disponiveis,setDisponiveis]=useState([]);
   const [selectedClientId,setSelectedClientId]=useState("");
   const [carteiraLoading,setCarteiraLoading]=useState(false);
 
@@ -494,19 +493,43 @@ const NewOrder = ({ user, onSubmit }) => {
   useEffect(()=>{
     if (!isVendedor) return;
     setCarteiraLoading(true);
-    Promise.all([
-      supabase.from("profiles").select("id,name,email,phone").eq("vendedor_id",user.id).eq("role","client").order("name"),
-      supabase.from("profiles").select("id,name,email,phone").is("vendedor_id",null).eq("role","client").order("name"),
-    ]).then(([carResp,dispResp])=>{
-      setCarteira(carResp.data||[]);
-      setDisponiveis(dispResp.data||[]);
+    (async()=>{
+      // 1. Clientes PF da carteira
+      const {data:pfData}=await supabase.from("profiles")
+        .select("id,name,email,phone,company_id")
+        .eq("vendedor_id",user.id)
+        .eq("role","client");
+
+      // 2. Empresas atendidas
+      const {data:myComps}=await supabase.from("companies")
+        .select("id,name")
+        .eq("vendedor_id",user.id);
+
+      // 3. Funcionários dessas empresas
+      let empData=[];
+      const compMap={};
+      if (myComps && myComps.length>0) {
+        myComps.forEach(c=>compMap[c.id]=c.name);
+        const compIds=myComps.map(c=>c.id);
+        const {data}=await supabase.from("profiles")
+          .select("id,name,email,phone,company_id")
+          .in("company_id",compIds)
+          .eq("role","client");
+        empData=data||[];
+      }
+
+      const carteiraComplete=[
+        ...(pfData||[]).map(c=>({...c,_group:"👤 Clientes PF"})),
+        ...empData.map(c=>({...c,_group:`🏢 ${compMap[c.company_id]||"Empresa"}`})),
+      ];
+      setCarteira(carteiraComplete);
       setCarteiraLoading(false);
-    });
+    })();
   },[isVendedor,user.id]);
 
   const handleClientSelect = (id) => {
     setSelectedClientId(id);
-    const c = [...carteira,...disponiveis].find(c=>c.id===id);
+    const c = carteira.find(c=>c.id===id);
     if (c) setClientName(c.name||c.email||"");
   };
 
@@ -523,15 +546,12 @@ const NewOrder = ({ user, onSubmit }) => {
       // Entrega C: vendedor cria em nome do cliente selecionado
       const ordClientId    = isVendedor ? selectedClientId : user.id;
       const ordClientName  = isVendedor ? clientName : (user.name||user.email);
-      const ordVendedorId  = isVendedor ? user.id : (user.vendedor_id||null);
+      // Para vendedor: passa explicit. Para client/admin: deixa null e o trigger resolve
+      const ordVendedorId  = isVendedor ? user.id : null;
 
-      // Se o vendedor escolheu cliente "sem vendedor", puxa para a carteira dele
-      if (isVendedor && selectedClientId) {
-        const isFromCarteira = carteira.some(c => c.id === selectedClientId);
-        if (!isFromCarteira) {
-          await supabase.rpc("claim_client",{ p_client_id: selectedClientId });
-        }
-      }
+      const ordCompanyId = isVendedor
+        ? (carteira.find(c=>c.id===selectedClientId)?.company_id || null)
+        : (user.company_id || null);
 
       const {data:order,error} = await supabase.from("orders").insert({
         display_id,
@@ -540,7 +560,7 @@ const NewOrder = ({ user, onSubmit }) => {
         title:        fullTitle,
         description,
         status:       "aguardando",
-        company_id:   user.company_id||null,
+        company_id:   ordCompanyId,
         vendedor_id:  ordVendedorId,
       }).select().single();
 
@@ -607,40 +627,42 @@ const NewOrder = ({ user, onSubmit }) => {
                 <div className="barlow" style={{fontSize:17,fontWeight:700,marginBottom:12,color:"var(--orange)"}}>👤 Cliente do Pedido *</div>
                 {carteiraLoading ? (
                   <div style={{color:"var(--gray-light)",fontSize:13}}>Carregando carteira...</div>
-                ) : (carteira.length===0 && disponiveis.length===0) ? (
+                ) : carteira.length===0 ? (
                   <div style={{background:"rgba(232,119,34,.08)",border:"1px solid rgba(232,119,34,.2)",borderRadius:8,padding:"12px 14px",fontSize:13,color:"var(--orange)"}}>
-                    ⚠️ Nenhum cliente disponível ainda. Peça ao admin para cadastrar clientes ou aguarde clientes se cadastrarem no portal.
+                    ⚠️ Sua carteira está vazia. Vá ao Dashboard e puxe uma empresa ou cliente PF disponível.
                   </div>
                 ) : (
                   <>
                     <select className="input-field" value={selectedClientId} onChange={e=>handleClientSelect(e.target.value)}>
                       <option value="">Selecione o cliente...</option>
-                      {carteira.length>0 && (
-                        <optgroup label="🤝 Minha Carteira">
-                          {carteira.map(c=>(
-                            <option key={c.id} value={c.id}>{c.name||c.email}{c.phone?` · ${c.phone}`:""}</option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {disponiveis.length>0 && (
-                        <optgroup label="🆕 Disponíveis (sem vendedor)">
-                          {disponiveis.map(c=>(
-                            <option key={c.id} value={c.id}>{c.name||c.email}{c.phone?` · ${c.phone}`:""}</option>
-                          ))}
-                        </optgroup>
-                      )}
+                      {(() => {
+                        // Agrupa por _group (empresa ou "Clientes PF")
+                        const groups={};
+                        carteira.forEach(c=>{
+                          const k=c._group||"Clientes";
+                          if (!groups[k]) groups[k]=[];
+                          groups[k].push(c);
+                        });
+                        // Ordena: PF primeiro, empresas depois
+                        const sortedKeys=Object.keys(groups).sort((a,b)=>{
+                          if (a.startsWith("👤")) return -1;
+                          if (b.startsWith("👤")) return 1;
+                          return a.localeCompare(b);
+                        });
+                        return sortedKeys.map(k=>(
+                          <optgroup key={k} label={k}>
+                            {groups[k].map(c=>(
+                              <option key={c.id} value={c.id}>{c.name||c.email}{c.phone?` · ${c.phone}`:""}</option>
+                            ))}
+                          </optgroup>
+                        ));
+                      })()}
                     </select>
-                    {selectedClientId && (() => {
-                      const isFromCarteira = carteira.some(c=>c.id===selectedClientId);
-                      return (
-                        <div style={{marginTop:8,fontSize:12,color:"var(--gray-light)"}}>
-                          {isFromCarteira
-                            ? <>✅ Pedido será criado em nome de <strong style={{color:"var(--white)"}}>{clientName}</strong></>
-                            : <>🤝 <strong style={{color:"var(--orange)"}}>{clientName}</strong> entrará na sua carteira ao criar este pedido.</>
-                          }
-                        </div>
-                      );
-                    })()}
+                    {selectedClientId && (
+                      <div style={{marginTop:8,fontSize:12,color:"var(--gray-light)"}}>
+                        ✅ Pedido será criado em nome de <strong style={{color:"var(--white)"}}>{clientName}</strong>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -1055,7 +1077,8 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
 const AdminDashboard = ({ user, orders, setSelectedOrder, setActiveTab, setOrdersFilter }) => {
   const [companies,setCompanies]=useState([]);
   const [dashSearch,setDashSearch]=useState("");
-  const [disponiveis,setDisponiveis]=useState([]);
+  const [empresasDisp,setEmpresasDisp]=useState([]);
+  const [pfDisp,setPfDisp]=useState([]);
   const [claimingId,setClaimingId]=useState(null);
   const [claimedToast,setClaimedToast]=useState(null);
   const isVendedor = user?.role === "vendedor";
@@ -1063,23 +1086,43 @@ const AdminDashboard = ({ user, orders, setSelectedOrder, setActiveTab, setOrder
 
   const loadDisponiveis=async()=>{
     if (!isVendedor) return;
-    const {data}=await supabase.from("profiles")
+    // Empresas sem vendedor
+    const {data:emps}=await supabase.from("companies")
+      .select("id,name,phone,created_at")
+      .is("vendedor_id",null)
+      .order("created_at",{ascending:false});
+    setEmpresasDisp(emps||[]);
+
+    // Clientes PF sem empresa e sem vendedor
+    const {data:pfs}=await supabase.from("profiles")
       .select("id,name,email,phone,created_at")
       .is("vendedor_id",null)
+      .is("company_id",null)
       .eq("role","client")
       .order("created_at",{ascending:false});
-    setDisponiveis(data||[]);
+    setPfDisp(pfs||[]);
   };
   useEffect(()=>{ loadDisponiveis(); },[isVendedor]);
 
-  const handleClaim=async(client)=>{
-    setClaimingId(client.id);
+  const handleClaimEmpresa=async(empresa)=>{
+    setClaimingId(empresa.id);
     try {
-      await supabase.rpc("claim_client",{p_client_id:client.id});
-      setClaimedToast(client.name||client.email||"Cliente");
+      await supabase.rpc("claim_company",{p_company_id:empresa.id});
+      setClaimedToast(`🏢 ${empresa.name}`);
       setTimeout(()=>setClaimedToast(null),3500);
       await loadDisponiveis();
-    } catch(e) { console.error("Erro ao puxar:",e); }
+    } catch(e){ console.error("Erro ao puxar empresa:",e); }
+    setClaimingId(null);
+  };
+
+  const handleClaimPF=async(pf)=>{
+    setClaimingId(pf.id);
+    try {
+      await supabase.rpc("claim_client",{p_client_id:pf.id});
+      setClaimedToast(`👤 ${pf.name||pf.email}`);
+      setTimeout(()=>setClaimedToast(null),3500);
+      await loadDisponiveis();
+    } catch(e){ console.error("Erro ao puxar cliente:",e); }
     setClaimingId(null);
   };
   const compMap=Object.fromEntries(companies.map(c=>[c.id,c.name]));
@@ -1130,22 +1173,62 @@ const AdminDashboard = ({ user, orders, setSelectedOrder, setActiveTab, setOrder
         </div>
       )}
 
-      {/* Card de Clientes Disponíveis — só para vendedor */}
+      {/* Card de Empresas Disponíveis — só para vendedor */}
+      {isVendedor && (
+        <div className="card" style={{marginBottom:20,borderTop:"3px solid var(--yellow)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+            <div>
+              <div className="barlow" style={{fontSize:20,fontWeight:700}}>🏢 Empresas Disponíveis</div>
+              <div style={{fontSize:13,color:"var(--gray-light)",marginTop:2}}>
+                {empresasDisp.length===0
+                  ? "✅ Todas as empresas já têm vendedor"
+                  : `${empresasDisp.length} empresa(s) sem vendedor — puxar atende a empresa toda (todos os funcionários)`}
+              </div>
+            </div>
+          </div>
+          {empresasDisp.length>0 && (
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {empresasDisp.map(e=>(
+                <div key={e.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 110px",padding:"12px 14px",background:"var(--gray-mid)",borderRadius:8,alignItems:"center",gap:10}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:32,height:32,borderRadius:8,background:"var(--yellow)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"var(--black)",fontSize:13,flexShrink:0}}>
+                      🏢
+                    </div>
+                    <div>
+                      <div style={{fontWeight:600,fontSize:14}}>{e.name}</div>
+                      <div style={{fontSize:11,color:"var(--gray-light)"}}>Cadastrada em {new Date(e.created_at).toLocaleDateString("pt-BR")}</div>
+                    </div>
+                  </div>
+                  <div style={{fontSize:13,color:"var(--gray-light)"}}>{e.phone||"—"}</div>
+                  <button
+                    onClick={()=>handleClaimEmpresa(e)}
+                    disabled={claimingId===e.id}
+                    style={{background:"var(--orange)",color:"white",border:"none",borderRadius:6,padding:"8px 14px",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,cursor:claimingId===e.id?"wait":"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,opacity:claimingId===e.id?0.6:1,transition:"all .2s"}}>
+                    {claimingId===e.id ? <><div className="spinner" style={{width:13,height:13}}/>...</> : "🤝 Puxar"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Card de Clientes PF Disponíveis — só para vendedor */}
       {isVendedor && (
         <div className="card" style={{marginBottom:20,borderTop:"3px solid #64b5f6"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
             <div>
-              <div className="barlow" style={{fontSize:20,fontWeight:700}}>🆕 Clientes Disponíveis</div>
+              <div className="barlow" style={{fontSize:20,fontWeight:700}}>👤 Clientes PF Disponíveis</div>
               <div style={{fontSize:13,color:"var(--gray-light)",marginTop:2}}>
-                {disponiveis.length===0
-                  ? "✅ Todos os clientes já têm vendedor"
-                  : `${disponiveis.length} cliente(s) sem vendedor — puxe para sua carteira`}
+                {pfDisp.length===0
+                  ? "✅ Todos os clientes PF já têm vendedor"
+                  : `${pfDisp.length} cliente(s) PF sem vendedor — clientes individuais (sem empresa)`}
               </div>
             </div>
           </div>
-          {disponiveis.length>0 && (
+          {pfDisp.length>0 && (
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {disponiveis.map(c=>(
+              {pfDisp.map(c=>(
                 <div key={c.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 110px",padding:"12px 14px",background:"var(--gray-mid)",borderRadius:8,alignItems:"center",gap:10}}>
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
                     <div style={{width:32,height:32,borderRadius:"50%",background:"#64b5f6",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"white",fontSize:13,flexShrink:0}}>
@@ -1158,7 +1241,7 @@ const AdminDashboard = ({ user, orders, setSelectedOrder, setActiveTab, setOrder
                   </div>
                   <div style={{fontSize:13,color:"var(--gray-light)"}}>{c.phone||"—"}</div>
                   <button
-                    onClick={()=>handleClaim(c)}
+                    onClick={()=>handleClaimPF(c)}
                     disabled={claimingId===c.id}
                     style={{background:"var(--orange)",color:"white",border:"none",borderRadius:6,padding:"8px 14px",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,cursor:claimingId===c.id?"wait":"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,opacity:claimingId===c.id?0.6:1,transition:"all .2s"}}>
                     {claimingId===c.id ? <><div className="spinner" style={{width:13,height:13}}/>...</> : "🤝 Puxar"}
@@ -1231,24 +1314,101 @@ const AdminDashboard = ({ user, orders, setSelectedOrder, setActiveTab, setOrder
 // ─── COMPANIES PAGE ───────────────────────────────────────────────────────────
 const CompaniesPage = () => {
   const [companies,setCompanies]=useState([]);
+  const [vendedores,setVendedores]=useState([]);
   const [showCreate,setShowCreate]=useState(false);
   const [newName,setNewName]=useState("");
   const [newPhone,setNewPhone]=useState("");
   const [creating,setCreating]=useState(false);
   const [copied,setCopied]=useState(null);
-  const loadCompanies=async()=>{ const {data}=await supabase.from("companies").select("*").order("created_at",{ascending:false}); setCompanies(data||[]); };
-  useEffect(()=>{ loadCompanies(); },[]);
+  // Vincular vendedor
+  const [vinculandoEmpresa,setVinculandoEmpresa]=useState(null);
+  const [selectedVendedor,setSelectedVendedor]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [toast,setToast]=useState(null);
+  const showToast=(msg,type="green")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),3500); };
+
+  const loadAll=async()=>{
+    const {data:comps}=await supabase.from("companies").select("*").order("created_at",{ascending:false});
+    const {data:vens}=await supabase.from("profiles").select("id,name").eq("role","vendedor");
+    const vMap=Object.fromEntries((vens||[]).map(v=>[v.id,v.name]));
+    setVendedores(vens||[]);
+    setCompanies((comps||[]).map(c=>({
+      ...c,
+      vendedor_name:c.vendedor_id?(vMap[c.vendedor_id]||null):null,
+    })));
+  };
+  useEffect(()=>{ loadAll(); },[]);
+
   const handleCreate=async()=>{
     if (!newName.trim()) return; setCreating(true);
     let key,exists=true;
     while(exists){ key=Math.floor(100000+Math.random()*900000).toString(); const {data}=await supabase.from("companies").select("id").eq("access_key",key).maybeSingle(); exists=!!data; }
     await supabase.from("companies").insert({name:newName.trim(),phone:newPhone.trim()||null,access_key:key});
-    setCreating(false);setShowCreate(false);setNewName("");setNewPhone("");loadCompanies();
+    setCreating(false);setShowCreate(false);setNewName("");setNewPhone("");loadAll();
   };
+
   const handleCopy=(key)=>{ navigator.clipboard?.writeText(key); setCopied(key); setTimeout(()=>setCopied(null),2500); };
+
+  const openVincular=(empresa)=>{ setVinculandoEmpresa(empresa); setSelectedVendedor(empresa.vendedor_id||""); };
+
+  const handleVincular=async()=>{
+    setSaving(true);
+    const newVendedorId = selectedVendedor || null;
+    // Atualiza vendedor da empresa
+    await supabase.from("companies").update({vendedor_id:newVendedorId}).eq("id",vinculandoEmpresa.id);
+    // Reatribui TODOS os pedidos da empresa ao novo vendedor (ou null)
+    await supabase.from("orders").update({vendedor_id:newVendedorId}).eq("company_id",vinculandoEmpresa.id);
+    setSaving(false);
+    const vName=vendedores.find(v=>v.id===selectedVendedor)?.name;
+    showToast(vName?`${vinculandoEmpresa.name} vinculada a ${vName}!`:"Vínculo removido.");
+    setVinculandoEmpresa(null); setSelectedVendedor("");
+    loadAll();
+  };
   return (
     <div>
+      {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:600,background:toast.type==="red"?"#b71c1c":"#1b5e20",border:`1px solid ${toast.type==="red"?"#ef5350":"#4caf72"}`,borderRadius:10,padding:"12px 20px",color:"white",fontSize:14,fontWeight:500,animation:"fadeIn .3s ease"}}>{toast.type==="red"?"🗑️":"✅"} {toast.msg}</div>}
+
       {showCreate&&(<div className="modal-overlay"><div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}><div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:16}}>🏢 Cadastrar Empresa</div><div style={{display:"flex",flexDirection:"column",gap:13}}><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>NOME DA EMPRESA *</label><input className="input-field" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Ex: Calais Móveis Ltda."/></div><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>TELEFONE</label><input className="input-field" value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="(31) 99999-0000"/></div></div><div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>setShowCreate(false)}>Cancelar</button><button className="btn-primary" onClick={handleCreate} disabled={creating||!newName.trim()}>{creating?<><div className="spinner"/>Criando...</>:"🏢 Criar Empresa"}</button></div></div></div>)}
+
+      {/* Modal Vincular Vendedor à Empresa */}
+      {vinculandoEmpresa&&(
+        <div className="modal-overlay">
+          <div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:440,width:"90%",animation:"fadeIn .25s ease"}}>
+            <div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4}}>🤝 Vincular Vendedor à Empresa</div>
+            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:16}}>
+              Empresa: <strong style={{color:"var(--white)"}}>{vinculandoEmpresa.name}</strong>
+            </div>
+            <div style={{background:"rgba(245,184,0,.06)",border:"1px solid rgba(245,184,0,.2)",borderRadius:8,padding:"10px 14px",fontSize:12,color:"var(--gray-light)",lineHeight:1.6,marginBottom:16}}>
+              ℹ️ O vendedor escolhido vai atender <strong style={{color:"var(--white)"}}>todos os funcionários</strong> da empresa.
+              Pedidos antigos da empresa também serão transferidos para ele.
+            </div>
+            {vendedores.length===0 ? (
+              <div style={{background:"rgba(232,119,34,.08)",border:"1px solid rgba(232,119,34,.2)",borderRadius:8,padding:"12px 14px",fontSize:13,color:"var(--orange)"}}>
+                ⚠️ Nenhum vendedor cadastrado. Crie um vendedor primeiro.
+              </div>
+            ) : (
+              <>
+                <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:8}}>VENDEDOR RESPONSÁVEL</label>
+                <select className="input-field" value={selectedVendedor} onChange={e=>setSelectedVendedor(e.target.value)}>
+                  <option value="">— Sem vendedor —</option>
+                  {vendedores.map(v=>(
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </>
+            )}
+            <div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}>
+              <button className="btn-ghost" onClick={()=>{setVinculandoEmpresa(null);setSelectedVendedor("");}}>Cancelar</button>
+              {vendedores.length>0 && (
+                <button className="btn-primary" onClick={handleVincular} disabled={saving}>
+                  {saving?<><div className="spinner"/>Salvando...</>:"💾 Salvar"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
         <div><div className="barlow" style={{fontSize:32,fontWeight:800}}>Empresas</div><p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{companies.length} empresa(s)</p></div>
         <button className="btn-primary" onClick={()=>setShowCreate(true)}><Icon name="plus" size={16}/>Nova Empresa</button>
@@ -1257,10 +1417,23 @@ const CompaniesPage = () => {
       :companies.map(co=>(
         <div key={co.id} className="card" style={{marginBottom:14}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:16}}>
-            <div>
+            <div style={{flex:1,minWidth:240}}>
               <div className="barlow" style={{fontSize:20,fontWeight:700}}>{co.name}</div>
               {co.phone&&<div style={{fontSize:13,color:"var(--gray-light)",marginTop:2}}>📞 {co.phone}</div>}
               <div style={{fontSize:12,color:"var(--gray-light)",marginTop:4}}>Cadastrada em {new Date(co.created_at).toLocaleDateString("pt-BR")}</div>
+              {/* Vendedor da empresa */}
+              <div style={{marginTop:10,display:"flex",alignItems:"center",gap:8}}>
+                {co.vendedor_name ? (
+                  <span style={{fontSize:13,color:"var(--orange)",fontWeight:600,background:"rgba(232,119,34,.1)",padding:"4px 10px",borderRadius:14,border:"1px solid rgba(232,119,34,.3)"}}>🤝 {co.vendedor_name}</span>
+                ) : (
+                  <span style={{fontSize:13,color:"var(--gray-light)",background:"var(--gray-mid)",padding:"4px 10px",borderRadius:14,border:"1px solid var(--gray)"}}>🤝 Sem vendedor</span>
+                )}
+                <button onClick={()=>openVincular(co)} style={{background:"transparent",border:"1.5px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"5px 12px",fontSize:12,fontFamily:"DM Sans,sans-serif",transition:"all .2s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--orange)";e.currentTarget.style.color="var(--orange)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--gray)";e.currentTarget.style.color="var(--gray-light)";}}>
+                  {co.vendedor_id?"Trocar":"Vincular"}
+                </button>
+              </div>
             </div>
             <div style={{textAlign:"right"}}>
               <div style={{fontSize:11,color:"var(--gray-light)",marginBottom:6,textTransform:"uppercase",letterSpacing:.5}}>Chave de Acesso</div>
@@ -1298,16 +1471,28 @@ const UsersPage = ({ orders }) => {
 
   const loadClients=async()=>{
     const {data:cd}=await supabase.from("profiles").select("*").eq("role","client");
-    const {data:coD}=await supabase.from("companies").select("id,name");
+    const {data:coD}=await supabase.from("companies").select("id,name,vendedor_id");
     const {data:vD}=await supabase.from("profiles").select("id,name").eq("role","vendedor");
-    const cMap=Object.fromEntries((coD||[]).map(c=>[c.id,c.name]));
+    const cMap=Object.fromEntries((coD||[]).map(c=>[c.id,c]));
     const vMap=Object.fromEntries((vD||[]).map(v=>[v.id,v.name]));
     setVendedores(vD||[]);
-    setClients((cd||[]).map(c=>({
-      ...c,
-      company_name:c.company_id?(cMap[c.company_id]||null):null,
-      vendedor_name:c.vendedor_id?(vMap[c.vendedor_id]||null):null,
-    })));
+    setClients((cd||[]).map(c=>{
+      const company=c.company_id?cMap[c.company_id]:null;
+      let vendedor_name=null;
+      let vendedor_inherited=false;
+      if (company && company.vendedor_id) {
+        vendedor_name=vMap[company.vendedor_id]||null;
+        vendedor_inherited=true;
+      } else if (c.vendedor_id) {
+        vendedor_name=vMap[c.vendedor_id]||null;
+      }
+      return {
+        ...c,
+        company_name:company?.name||null,
+        vendedor_name,
+        vendedor_inherited,
+      };
+    }));
   };
   useEffect(()=>{ loadClients(); },[]);
 
@@ -1336,10 +1521,13 @@ const UsersPage = ({ orders }) => {
     if(error) showToast("Erro: "+error.message,"red"); else showToast(`Link enviado para ${resetEmail}!`);
   };
 
-  // Entrega B: vincular/desvincular vendedor
+  // Entrega B: vincular/desvincular vendedor (só para PF)
   const handleVincular=async()=>{
     setSaving(true);
-    await supabase.from("profiles").update({vendedor_id:selectedVendedor||null}).eq("id",vinculandoClient.id);
+    const newVendedorId = selectedVendedor || null;
+    await supabase.from("profiles").update({vendedor_id:newVendedorId}).eq("id",vinculandoClient.id);
+    // Reatribui TODOS os pedidos desse cliente PF ao novo vendedor (ou null)
+    await supabase.from("orders").update({vendedor_id:newVendedorId}).eq("client_id",vinculandoClient.id);
     setSaving(false);
     const vName=vendedores.find(v=>v.id===selectedVendedor)?.name;
     showToast(vName?`Cliente vinculado a ${vName}!`:"Vínculo removido.");
@@ -1424,11 +1612,15 @@ const UsersPage = ({ orders }) => {
                 <div style={{fontWeight:500}}>{displayName(c)}</div>
                 <div style={{fontSize:12,color:"var(--gray-light)"}}>{c.email||"—"}</div>
                 {c.company_name&&<div style={{fontSize:11,color:"var(--yellow)",marginTop:2}}>🏢 {c.company_name}</div>}
-                {/* Entrega B: badge do vendedor */}
-                {c.vendedor_name
-                  ? <div style={{fontSize:11,color:"var(--orange)",marginTop:2}}>🤝 {c.vendedor_name}</div>
-                  : <div style={{fontSize:11,color:"var(--gray-light)",marginTop:2}}>🤝 Sem vendedor</div>
-                }
+                {/* Vendedor: herdado da empresa OU direto */}
+                {c.vendedor_name ? (
+                  <div style={{fontSize:11,color:"var(--orange)",marginTop:2}}>
+                    🤝 {c.vendedor_name}
+                    {c.vendedor_inherited && <span style={{color:"var(--gray-light)",marginLeft:5,fontSize:10}}>(via empresa)</span>}
+                  </div>
+                ) : (
+                  <div style={{fontSize:11,color:"var(--gray-light)",marginTop:2}}>🤝 Sem vendedor</div>
+                )}
               </div>
             </div>
             <div style={{fontSize:13,color:"var(--gray-light)"}}>{c.phone||"—"}</div>
@@ -1436,11 +1628,16 @@ const UsersPage = ({ orders }) => {
             <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
               {btnAction(()=>handleEdit(c),"Editar","✏️")}
               {btnAction(()=>{setResetClient(c);setResetEmail(c.email||"");},"Redefinir senha","🔑")}
-              {/* Entrega B: botão vincular */}
-              <button title="Vincular vendedor" onClick={()=>openVincular(c)}
-                style={{background:c.vendedor_id?"rgba(232,119,34,.15)":"var(--gray-mid)",border:`1px solid ${c.vendedor_id?"rgba(232,119,34,.4)":"var(--gray)"}`,borderRadius:6,color:c.vendedor_id?"var(--orange)":"var(--gray-light)",cursor:"pointer",padding:"6px 9px",fontSize:15,transition:"all .2s",lineHeight:1}}
-                onMouseEnter={e=>e.currentTarget.style.color="var(--orange)"}
-                onMouseLeave={e=>e.currentTarget.style.color=c.vendedor_id?"var(--orange)":"var(--gray-light)"}>🤝</button>
+              {/* 🤝 só para clientes PF — clientes de empresa herdam vendedor da empresa */}
+              {!c.company_id ? (
+                <button title="Vincular vendedor" onClick={()=>openVincular(c)}
+                  style={{background:c.vendedor_id?"rgba(232,119,34,.15)":"var(--gray-mid)",border:`1px solid ${c.vendedor_id?"rgba(232,119,34,.4)":"var(--gray)"}`,borderRadius:6,color:c.vendedor_id?"var(--orange)":"var(--gray-light)",cursor:"pointer",padding:"6px 9px",fontSize:15,transition:"all .2s",lineHeight:1}}
+                  onMouseEnter={e=>e.currentTarget.style.color="var(--orange)"}
+                  onMouseLeave={e=>e.currentTarget.style.color=c.vendedor_id?"var(--orange)":"var(--gray-light)"}>🤝</button>
+              ) : (
+                <button title="Vendedor herdado da empresa — altere na página Empresas" disabled
+                  style={{background:"var(--gray-mid)",border:"1px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"not-allowed",padding:"6px 9px",fontSize:15,opacity:0.4,lineHeight:1}}>🤝</button>
+              )}
               {btnAction(()=>setDeleteClient(c),"Excluir","🗑️",true)}
             </div>
           </div>
