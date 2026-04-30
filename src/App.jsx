@@ -1509,9 +1509,15 @@ export default function App() {
             vendedor_id:profile.vendedor_id||null, // Entrega B: inclui vendedor_id no user
           };
         }
-        const np={id:session.user.id,name:session.user.email?.split("@")[0]||"Usuário",phone:"",role:"client",email:session.user.email||"",company_id:null,vendedor_id:null};
-        await supabase.from("profiles").upsert(np,{onConflict:"id"});
-        return {...session.user,...np};
+        // ⚠️ CRÍTICO: só cria perfil se realmente não existe (error=null e profile=null)
+        // Se houve erro de RLS/rede, NÃO toca no banco — evita sobrescrever role real
+        if (!error && !profile) {
+          const np={id:session.user.id,name:session.user.email?.split("@")[0]||"Usuário",phone:"",role:"client",email:session.user.email||"",company_id:null,vendedor_id:null};
+          await supabase.from("profiles").insert(np); // INSERT, nunca upsert
+          return {...session.user,...np};
+        }
+        // Erro de RLS ou rede — retorna dados da sessão sem alterar o banco
+        return {...session.user,name:session.user.email?.split("@")[0]||"Usuário",role:"client",email:session.user.email||"",company_id:null,vendedor_id:null};
       } catch(e){ return {...session.user,name:session.user.email?.split("@")[0]||"Usuário",role:"client",vendedor_id:null}; }
     };
     try {
