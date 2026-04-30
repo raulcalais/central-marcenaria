@@ -25,62 +25,63 @@ const FontLoader = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=DM+Sans:wght@300;400;500;600&display=swap');
     :root {
-      --yellow: #F5B800; --yellow-dark: #D9A200;
-      --green: #1A4D2E; --green-light: #22863a;
-      --black: #0F0F0F; --gray-dark: #1C1C1C; --gray-mid: #2A2A2A;
-      --gray: #3D3D3D; --gray-light: #888; --off-white: #F7F4EE; --white: #FFFFFF;
-      --red: #C8102E; --orange: #E87722;
+      --yellow:#F5B800; --yellow-dark:#D9A200;
+      --green:#1A4D2E; --green-light:#22863a;
+      --black:#0F0F0F; --gray-dark:#1C1C1C; --gray-mid:#2A2A2A;
+      --gray:#3D3D3D; --gray-light:#888; --off-white:#F7F4EE; --white:#FFFFFF;
+      --red:#C8102E; --orange:#E87722;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: var(--black); color: var(--white); font-family: 'DM Sans', sans-serif; }
-    .barlow { font-family: 'Barlow Condensed', sans-serif; }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: var(--gray-dark); }
-    ::-webkit-scrollbar-thumb { background: var(--gray); border-radius: 3px; }
-    @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .fade-in { animation: fadeIn 0.4s ease forwards; }
-    .spinner { width:20px; height:20px; border:2px solid rgba(255,255,255,0.2); border-top-color:#F5B800; border-radius:50%; animation:spin 0.7s linear infinite; }
-    .btn-primary { background:var(--yellow); color:var(--black); border:none; border-radius:6px; padding:12px 24px; font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:700; letter-spacing:.5px; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:8px; }
-    .btn-primary:hover { background:var(--yellow-dark); transform:translateY(-1px); box-shadow:0 4px 16px rgba(245,184,0,.3); }
-    .btn-primary:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
-    .btn-ghost { background:transparent; color:var(--gray-light); border:1.5px solid var(--gray); border-radius:6px; padding:10px 20px; font-family:'DM Sans',sans-serif; font-size:14px; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:6px; }
-    .btn-ghost:hover { border-color:var(--gray-light); color:var(--white); }
-    .btn-green { background:var(--green); color:white; border:none; border-radius:6px; padding:10px 20px; font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:700; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:6px; }
-    .btn-green:hover { background:var(--green-light); }
-    .btn-danger { background:#b71c1c; color:white; border:none; border-radius:6px; padding:10px 20px; font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:700; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:6px; }
-    .btn-danger:hover { background:#c62828; }
-    .btn-danger:disabled { opacity:0.5; cursor:not-allowed; }
-    .card { background:var(--gray-dark); border:1px solid var(--gray); border-radius:12px; padding:20px; }
-    .input-field { background:var(--gray-mid); border:1.5px solid var(--gray); border-radius:8px; color:var(--white); padding:12px 16px; font-family:'DM Sans',sans-serif; font-size:14px; width:100%; transition:border-color .2s; outline:none; }
-    .input-field:focus { border-color:var(--yellow); }
-    .input-field::placeholder { color:var(--gray-light); }
-    textarea.input-field { resize:vertical; min-height:100px; }
-    .search-field { background:var(--gray-mid); border:1.5px solid var(--gray); border-radius:8px; color:var(--white); padding:10px 14px 10px 38px; font-family:'DM Sans',sans-serif; font-size:14px; width:100%; transition:border-color .2s; outline:none; }
-    .search-field:focus { border-color:var(--yellow); }
-    .search-field::placeholder { color:var(--gray-light); }
-    .badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; }
-    .badge-yellow { background:rgba(245,184,0,.15); color:var(--yellow); }
-    .badge-green { background:rgba(26,107,46,.2); color:#4caf72; }
-    .badge-orange { background:rgba(232,119,34,.15); color:var(--orange); }
-    .badge-blue { background:rgba(21,101,192,.15); color:#64b5f6; }
-    .badge-gray { background:rgba(100,100,100,.2); color:var(--gray-light); }
-    .step-dot { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; transition:all .3s; }
-    .upload-zone { border:2px dashed var(--gray); border-radius:12px; padding:28px; text-align:center; cursor:pointer; transition:all .2s; }
-    .upload-zone:hover { border-color:var(--yellow); background:rgba(245,184,0,.04); }
-    .chat-bubble { max-width:75%; padding:10px 14px; border-radius:12px; font-size:14px; line-height:1.5; }
-    .chat-mine { background:var(--yellow); color:var(--black); border-bottom-right-radius:4px; }
-    .chat-other { background:var(--gray-mid); color:var(--white); border-bottom-left-radius:4px; }
-    .sidebar-item { display:flex; align-items:center; gap:12px; padding:10px 16px; border-radius:8px; font-size:14px; color:var(--gray-light); cursor:pointer; transition:all .2s; }
-    .sidebar-item:hover { background:var(--gray-mid); color:var(--white); }
-    .sidebar-item.active { background:rgba(245,184,0,.12); color:var(--yellow); border-left:3px solid var(--yellow); }
-    .table-row { display:grid; padding:14px 16px; border-bottom:1px solid var(--gray-mid); align-items:center; transition:background .15s; }
-    .table-row:hover { background:rgba(255,255,255,.03); }
-    .table-header { color:var(--gray-light); font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.8px; }
-    .msg-dot { width:9px; height:9px; border-radius:50%; background:#ef5350; display:inline-block; flex-shrink:0; box-shadow:0 0 6px rgba(239,83,80,.6); animation:pulseDot 1.5s infinite; }
-    @keyframes pulseDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.7;transform:scale(1.3)} }
-    .modal-overlay { position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,.75); z-index:500; display:flex; align-items:center; justify-content:center; }
-    .highlight { background:rgba(245,184,0,.25); border-radius:3px; padding:0 2px; color:var(--yellow); font-weight:600; }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--black);color:var(--white);font-family:'DM Sans',sans-serif;}
+    .barlow{font-family:'Barlow Condensed',sans-serif;}
+    ::-webkit-scrollbar{width:6px;}
+    ::-webkit-scrollbar-track{background:var(--gray-dark);}
+    ::-webkit-scrollbar-thumb{background:var(--gray);border-radius:3px;}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    .fade-in{animation:fadeIn 0.4s ease forwards;}
+    .spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,0.2);border-top-color:#F5B800;border-radius:50%;animation:spin 0.7s linear infinite;}
+    .btn-primary{background:var(--yellow);color:var(--black);border:none;border-radius:6px;padding:12px 24px;font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:.5px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:8px;}
+    .btn-primary:hover{background:var(--yellow-dark);transform:translateY(-1px);box-shadow:0 4px 16px rgba(245,184,0,.3);}
+    .btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+    .btn-ghost{background:transparent;color:var(--gray-light);border:1.5px solid var(--gray);border-radius:6px;padding:10px 20px;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;}
+    .btn-ghost:hover{border-color:var(--gray-light);color:var(--white);}
+    .btn-green{background:var(--green);color:white;border:none;border-radius:6px;padding:10px 20px;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;}
+    .btn-green:hover{background:var(--green-light);}
+    .btn-danger{background:#b71c1c;color:white;border:none;border-radius:6px;padding:10px 20px;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;}
+    .btn-danger:hover{background:#c62828;}
+    .btn-danger:disabled{opacity:0.5;cursor:not-allowed;}
+    .card{background:var(--gray-dark);border:1px solid var(--gray);border-radius:12px;padding:20px;}
+    .input-field{background:var(--gray-mid);border:1.5px solid var(--gray);border-radius:8px;color:var(--white);padding:12px 16px;font-family:'DM Sans',sans-serif;font-size:14px;width:100%;transition:border-color .2s;outline:none;}
+    .input-field:focus{border-color:var(--yellow);}
+    .input-field::placeholder{color:var(--gray-light);}
+    select.input-field option{background:var(--gray-mid);color:var(--white);}
+    textarea.input-field{resize:vertical;min-height:100px;}
+    .search-field{background:var(--gray-mid);border:1.5px solid var(--gray);border-radius:8px;color:var(--white);padding:10px 14px 10px 38px;font-family:'DM Sans',sans-serif;font-size:14px;width:100%;transition:border-color .2s;outline:none;}
+    .search-field:focus{border-color:var(--yellow);}
+    .search-field::placeholder{color:var(--gray-light);}
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;}
+    .badge-yellow{background:rgba(245,184,0,.15);color:var(--yellow);}
+    .badge-green{background:rgba(26,107,46,.2);color:#4caf72;}
+    .badge-orange{background:rgba(232,119,34,.15);color:var(--orange);}
+    .badge-blue{background:rgba(21,101,192,.15);color:#64b5f6;}
+    .badge-gray{background:rgba(100,100,100,.2);color:var(--gray-light);}
+    .step-dot{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;transition:all .3s;}
+    .upload-zone{border:2px dashed var(--gray);border-radius:12px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;}
+    .upload-zone:hover{border-color:var(--yellow);background:rgba(245,184,0,.04);}
+    .chat-bubble{max-width:75%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5;}
+    .chat-mine{background:var(--yellow);color:var(--black);border-bottom-right-radius:4px;}
+    .chat-other{background:var(--gray-mid);color:var(--white);border-bottom-left-radius:4px;}
+    .sidebar-item{display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;font-size:14px;color:var(--gray-light);cursor:pointer;transition:all .2s;}
+    .sidebar-item:hover{background:var(--gray-mid);color:var(--white);}
+    .sidebar-item.active{background:rgba(245,184,0,.12);color:var(--yellow);border-left:3px solid var(--yellow);}
+    .table-row{display:grid;padding:14px 16px;border-bottom:1px solid var(--gray-mid);align-items:center;transition:background .15s;}
+    .table-row:hover{background:rgba(255,255,255,.03);}
+    .table-header{color:var(--gray-light);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;}
+    .msg-dot{width:9px;height:9px;border-radius:50%;background:#ef5350;display:inline-block;flex-shrink:0;box-shadow:0 0 6px rgba(239,83,80,.6);animation:pulseDot 1.5s infinite;}
+    @keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.7;transform:scale(1.3)}}
+    .modal-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.75);z-index:500;display:flex;align-items:center;justify-content:center;}
+    .highlight{background:rgba(245,184,0,.25);border-radius:3px;padding:0 2px;color:var(--yellow);font-weight:600;}
   `}</style>
 );
 
@@ -102,7 +103,6 @@ const Highlight = ({ text, term }) => {
   return <>{text.slice(0,idx)}<mark className="highlight">{text.slice(idx,idx+term.trim().length)}</mark>{text.slice(idx+term.trim().length)}</>;
 };
 
-// Extrai o caminho do arquivo a partir da URL pública do Supabase Storage
 const extractStoragePath = (url) => {
   try {
     const marker = "/order-files/";
@@ -114,14 +114,13 @@ const extractStoragePath = (url) => {
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  aguardando:  { label:"Aguardando Análise",   color:"gray",   icon:"⏳", step:0 },
-  analise:     { label:"Em Análise",           color:"blue",   icon:"🔍", step:1 },
-  corte:       { label:"Em Corte",             color:"orange", icon:"🪚", step:2 },
-  filetamento: { label:"Filetamento",          color:"orange", icon:"📐", step:3 },
-  pronto:      { label:"Pronto p/ Retirada",   color:"green",  icon:"✅", step:4 },
-  entregue:    { label:"Entregue",             color:"green",  icon:"🚚", step:5 },
+  aguardando:  { label:"Aguardando Análise",  color:"gray",   icon:"⏳", step:0 },
+  analise:     { label:"Em Análise",          color:"blue",   icon:"🔍", step:1 },
+  corte:       { label:"Em Corte",            color:"orange", icon:"🪚", step:2 },
+  filetamento: { label:"Filetamento",         color:"orange", icon:"📐", step:3 },
+  pronto:      { label:"Pronto p/ Retirada",  color:"green",  icon:"✅", step:4 },
+  entregue:    { label:"Entregue",            color:"green",  icon:"🚚", step:5 },
 };
-
 const STEPS = [
   { key:"aguardando",  label:"Aguardando", icon:"📋" },
   { key:"analise",     label:"Análise",    icon:"🔍" },
@@ -129,26 +128,25 @@ const STEPS = [
   { key:"filetamento", label:"Filetamento",icon:"📐" },
   { key:"pronto",      label:"Pronto!",    icon:"✅" },
 ];
-
 const NEXT_STATUS = { aguardando:"analise", analise:"corte", corte:"filetamento", filetamento:"pronto", pronto:"entregue" };
-const STATUSES_CONCLUIDOS = ["entregue"];
 
 // ─── ICONS ────────────────────────────────────────────────────────────────────
 const Icon = ({ name, size=18 }) => {
   const icons = {
-    home:       "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10",
-    orders:     "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-    send:       "M12 19l9 2-9-18-9 18 9-2zm0 0v-8",
-    logout:     "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
-    plus:       "M12 4v16m8-8H4",
-    arrow:      "M10 19l-7-7m0 0l7-7m-7 7h18",
-    users:      "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
-    building:   "M3 21h18 M3 7l9-4 9 4 M4 11h16v10H4V11z M9 21v-6h6v6",
-    paperclip:  "M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48",
-    search:     "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0",
-    x:          "M18 6L6 18 M6 6l12 12",
-    trash:      "M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6",
-    vendor:     "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
+    home:      "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10",
+    orders:    "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+    send:      "M12 19l9 2-9-18-9 18 9-2zm0 0v-8",
+    logout:    "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
+    plus:      "M12 4v16m8-8H4",
+    arrow:     "M10 19l-7-7m0 0l7-7m-7 7h18",
+    users:     "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
+    building:  "M3 21h18 M3 7l9-4 9 4 M4 11h16v10H4V11z M9 21v-6h6v6",
+    paperclip: "M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48",
+    search:    "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0",
+    x:         "M18 6L6 18 M6 6l12 12",
+    trash:     "M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6",
+    vendor:    "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
+    link:      "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71 M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -233,7 +231,7 @@ const LoginPage = ({ onLogin }) => {
       if (!data?.user) { setError("Erro ao fazer login."); setLoading(false); return; }
       let profile=null;
       try { const {data:p}=await supabase.from("profiles").select("*").eq("id",data.user.id).maybeSingle(); profile=p; } catch(e){}
-      onLogin({...data.user,name:profile?.name||data.user.email?.split("@")[0]||"Usuário",phone:profile?.phone||"",role:profile?.role||"client",company_id:profile?.company_id||null});
+      onLogin({...data.user,name:profile?.name||data.user.email?.split("@")[0]||"Usuário",phone:profile?.phone||"",role:profile?.role||"client",company_id:profile?.company_id||null,vendedor_id:profile?.vendedor_id||null});
     } catch(e) { setError("Erro de conexão."); }
     setLoading(false);
   };
@@ -250,7 +248,7 @@ const LoginPage = ({ onLogin }) => {
       company_id=comp.id;
     }
     await supabase.from("profiles").upsert({id:data.user.id,name,phone,role:"client",email,company_id},{onConflict:"id"});
-    onLogin({...data.user,name,phone,role:"client",email,company_id});
+    onLogin({...data.user,name,phone,role:"client",email,company_id,vendedor_id:null});
     setLoading(false);
   };
 
@@ -318,9 +316,9 @@ const LoginPage = ({ onLogin }) => {
 // ─── LAYOUT ───────────────────────────────────────────────────────────────────
 const Layout = ({ user, activeTab, setActiveTab, onLogout, children }) => {
   const [collapsed,setCollapsed]=useState(false);
-  const isAdmin   = user.role==="admin";
-  const isVendedor= user.role==="vendedor";
-  const sideW     = collapsed?64:220;
+  const isAdmin    = user.role==="admin";
+  const isVendedor = user.role==="vendedor";
+  const sideW      = collapsed?64:220;
 
   const nav = isAdmin
     ? [
@@ -333,7 +331,8 @@ const Layout = ({ user, activeTab, setActiveTab, onLogout, children }) => {
     : isVendedor
     ? [
         {key:"dashboard", icon:"home",   label:"Dashboard"},
-        {key:"orders",    icon:"orders", label:"Pedidos"},
+        {key:"new-order", icon:"plus",   label:"Novo Pedido"},
+        {key:"orders",    icon:"orders", label:"Minha Carteira"},
       ]
     : [
         {key:"dashboard", icon:"home",   label:"Dashboard"},
@@ -343,18 +342,19 @@ const Layout = ({ user, activeTab, setActiveTab, onLogout, children }) => {
 
   const roleLabel = isAdmin ? "🔧 Admin" : isVendedor ? "🤝 Vendedor" : "👤 Cliente";
   const roleColor = isAdmin ? "var(--green)" : isVendedor ? "var(--orange)" : "var(--yellow)";
+  const textColor = isAdmin ? "white" : "var(--black)";
 
   return (
     <div style={{display:"flex",minHeight:"100vh"}}>
       <div style={{width:sideW,background:"var(--gray-dark)",borderRight:"1px solid var(--gray-mid)",display:"flex",flexDirection:"column",flexShrink:0,position:"fixed",height:"100vh",left:0,top:0,transition:"width .25s ease",overflow:"hidden",zIndex:100}}>
         <div style={{padding:"12px",borderBottom:"1px solid var(--gray-mid)",display:"flex",alignItems:"center",gap:8,justifyContent:collapsed?"center":"space-between",minHeight:60}}>
           <LogoMark height={32} collapsed={collapsed}/>
-          <button onClick={()=>setCollapsed(c=>!c)} style={{background:"var(--gray-mid)",border:"1px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"4px 8px",fontSize:14,flexShrink:0,lineHeight:1}} title={collapsed?"Expandir":"Recolher"}>
+          <button onClick={()=>setCollapsed(c=>!c)} style={{background:"var(--gray-mid)",border:"1px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"4px 8px",fontSize:14,flexShrink:0,lineHeight:1}}>
             {collapsed?"▶":"◀"}
           </button>
         </div>
         <div style={{padding:"10px 12px",borderBottom:"1px solid var(--gray-mid)",display:"flex",alignItems:"center",gap:8,justifyContent:collapsed?"center":"flex-start"}}>
-          <div style={{width:30,height:30,borderRadius:"50%",background:roleColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:isAdmin?"white":"var(--black)",flexShrink:0}}>
+          <div style={{width:30,height:30,borderRadius:"50%",background:roleColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:textColor,flexShrink:0}}>
             {(user.name||user.email||"?").charAt(0).toUpperCase()}
           </div>
           {!collapsed && <div>
@@ -437,7 +437,6 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
                 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                   <span style={{fontWeight:600,fontSize:14}}>{o.title}</span>
                   <span style={{fontSize:12,color:"var(--gray-light)"}}>{o.display_id}</span>
-                  {user.company_id && o.client_id!==user.id && <span style={{fontSize:11,color:"var(--yellow)",fontWeight:600,background:"rgba(245,184,0,.1)",padding:"2px 7px",borderRadius:10}}>👤 {o.client_name}</span>}
                   {hasUnread && <span className="msg-dot" title="Nova mensagem"/>}
                 </div>
                 <StatusBadge status={o.status} subStatus={o.sub_status}/>
@@ -470,6 +469,8 @@ const ClientDashboard = ({ user, orders, setActiveTab, setSelectedOrder }) => {
 
 // ─── NEW ORDER ────────────────────────────────────────────────────────────────
 const NewOrder = ({ user, onSubmit }) => {
+  const isVendedor = user.role === "vendedor";
+
   const [title,setTitle]=useState("");
   const [clientName,setClientName]=useState("");
   const [ot,setOt]=useState("");
@@ -478,26 +479,64 @@ const NewOrder = ({ user, onSubmit }) => {
   const [images,setImages]=useState([]);
   const [loading,setLoading]=useState(false);
   const [submitted,setSubmitted]=useState(null);
+
+  // Entrega C: carteira do vendedor
+  const [carteira,setCarteira]=useState([]);
+  const [selectedClientId,setSelectedClientId]=useState("");
+  const [carteiraLoading,setCarteiraLoading]=useState(false);
+
   const fileRef=useRef(); const imgRef=useRef();
+
+  useEffect(()=>{
+    if (!isVendedor) return;
+    setCarteiraLoading(true);
+    supabase.from("profiles")
+      .select("id,name,email,phone")
+      .eq("vendedor_id",user.id)
+      .eq("role","client")
+      .order("name")
+      .then(({data})=>{ setCarteira(data||[]); setCarteiraLoading(false); });
+  },[isVendedor,user.id]);
+
+  const handleClientSelect = (id) => {
+    setSelectedClientId(id);
+    const c = carteira.find(c=>c.id===id);
+    if (c) setClientName(c.name||c.email||"");
+  };
 
   const handleFileAdd=(e,type)=>{ const arr=Array.from(e.target.files||[]); if(type==="file") setFiles(p=>[...p,...arr]); else setImages(p=>[...p,...arr]); };
 
   const handleSubmit = async () => {
     if (!title||!description) return;
+    if (isVendedor && !selectedClientId) return;
     setLoading(true);
     try {
       const display_id="CM-"+Date.now().toString().slice(-5);
       const fullTitle=`${title}${clientName?" — "+clientName:""}${ot?" [OT:"+ot+"]":""}`;
+
+      // Entrega C: vendedor cria em nome do cliente selecionado
+      const ordClientId    = isVendedor ? selectedClientId : user.id;
+      const ordClientName  = isVendedor ? clientName : (user.name||user.email);
+      const ordVendedorId  = isVendedor ? user.id : (user.vendedor_id||null);
+
       const {data:order,error} = await supabase.from("orders").insert({
-        display_id, client_id:user.id, client_name:user.name||user.email,
-        title:fullTitle, description, status:"aguardando",
-        company_id:user.company_id||null
+        display_id,
+        client_id:    ordClientId,
+        client_name:  ordClientName,
+        title:        fullTitle,
+        description,
+        status:       "aguardando",
+        company_id:   user.company_id||null,
+        vendedor_id:  ordVendedorId,
       }).select().single();
+
       if (error) { console.error(error); setLoading(false); return; }
+
       const uploadWithTimeout=(file,path)=>Promise.race([
         supabase.storage.from("order-files").upload(path,file,{upsert:true}),
         new Promise((_,reject)=>setTimeout(()=>reject(new Error("timeout")),15000))
       ]);
+
       for (const {file,isImage} of [...files.map(f=>({file:f,isImage:false})),...images.map(f=>({file:f,isImage:true}))]) {
         try {
           const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
@@ -513,7 +552,9 @@ const NewOrder = ({ user, onSubmit }) => {
     setLoading(false);
   };
 
-  const resetForm=()=>{ setSubmitted(null);setTitle("");setClientName("");setOt("");setDescription("");setFiles([]);setImages([]); };
+  const resetForm=()=>{ setSubmitted(null);setTitle("");setClientName("");setOt("");setDescription("");setFiles([]);setImages([]);setSelectedClientId(""); };
+
+  const canSubmit = title && description && (!isVendedor || selectedClientId);
 
   return (
     <>
@@ -528,12 +569,11 @@ const NewOrder = ({ user, onSubmit }) => {
               <div style={{fontSize:22,fontWeight:800,color:"var(--yellow)",marginBottom:12}}>{submitted.display_id}</div>
               <div style={{display:"flex",flexDirection:"column",gap:8,fontSize:13}}>
                 <div style={{display:"flex",gap:8}}><span>📊</span><span>Acompanhe no <strong>painel</strong> em tempo real</span></div>
-                <div style={{display:"flex",gap:8}}><span>💬</span><span>Use o <strong>chat interno</strong> para dúvidas ou enviar mais arquivos</span></div>
-                <div style={{display:"flex",gap:8}}><span>📲</span><span>Notificação quando <strong>pronto para retirada</strong></span></div>
+                <div style={{display:"flex",gap:8}}><span>💬</span><span>Use o <strong>chat interno</strong> para dúvidas</span></div>
               </div>
             </div>
             <div style={{display:"flex",gap:10,justifyContent:"center"}}>
-              <button className="btn-primary" onClick={()=>{setSubmitted(null);onSubmit();}}>OK, ver meus pedidos →</button>
+              <button className="btn-primary" onClick={()=>{setSubmitted(null);onSubmit();}}>OK, ver pedidos →</button>
               <button className="btn-ghost" style={{fontSize:13}} onClick={resetForm}>Novo Pedido</button>
             </div>
           </div>
@@ -546,12 +586,41 @@ const NewOrder = ({ user, onSubmit }) => {
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:20}}>
           <div style={{display:"flex",flexDirection:"column",gap:18}}>
+
+            {/* Entrega C: seletor de cliente para vendedor */}
+            {isVendedor && (
+              <div className="card" style={{borderColor:"rgba(232,119,34,.3)"}}>
+                <div className="barlow" style={{fontSize:17,fontWeight:700,marginBottom:12,color:"var(--orange)"}}>👤 Cliente do Pedido *</div>
+                {carteiraLoading ? (
+                  <div style={{color:"var(--gray-light)",fontSize:13}}>Carregando carteira...</div>
+                ) : carteira.length===0 ? (
+                  <div style={{background:"rgba(232,119,34,.08)",border:"1px solid rgba(232,119,34,.2)",borderRadius:8,padding:"12px 14px",fontSize:13,color:"var(--orange)"}}>
+                    ⚠️ Você não tem clientes na carteira ainda. Peça ao admin para vincular clientes ao seu perfil na página Clientes.
+                  </div>
+                ) : (
+                  <>
+                    <select className="input-field" value={selectedClientId} onChange={e=>handleClientSelect(e.target.value)}>
+                      <option value="">Selecione o cliente...</option>
+                      {carteira.map(c=>(
+                        <option key={c.id} value={c.id}>{c.name||c.email}{c.phone?` · ${c.phone}`:""}</option>
+                      ))}
+                    </select>
+                    {selectedClientId && (
+                      <div style={{marginTop:8,fontSize:12,color:"var(--gray-light)"}}>
+                        ✅ Pedido será criado em nome de <strong style={{color:"var(--white)"}}>{clientName}</strong>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="card">
               <div className="barlow" style={{fontSize:17,fontWeight:700,marginBottom:14}}>Informações do Pedido</div>
               <div style={{display:"flex",flexDirection:"column",gap:13}}>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div style={{display:"grid",gridTemplateColumns:isVendedor?"1fr":"1fr 1fr",gap:12}}>
                   <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>AMBIENTE *</label><input className="input-field" placeholder="Ex: Sala de Estar, Cozinha..." value={title} onChange={e=>setTitle(e.target.value)}/></div>
-                  <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>CLIENTE (SOLICITANTE)</label><input className="input-field" placeholder="Nome do cliente final" value={clientName} onChange={e=>setClientName(e.target.value)}/></div>
+                  {!isVendedor && <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>CLIENTE (SOLICITANTE)</label><input className="input-field" placeholder="Nome do cliente final" value={clientName} onChange={e=>setClientName(e.target.value)}/></div>}
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"160px 1fr",gap:12}}>
                   <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>Nº OT</label><input className="input-field" placeholder="Ex: 1042" type="number" value={ot} onChange={e=>setOt(e.target.value)}/></div>
@@ -559,6 +628,7 @@ const NewOrder = ({ user, onSubmit }) => {
                 </div>
               </div>
             </div>
+
             <div className="card">
               <div className="barlow" style={{fontSize:17,fontWeight:700,marginBottom:12}}>📁 Arquivos de Relatórios</div>
               <div className="upload-zone" onClick={()=>fileRef.current.click()}>
@@ -577,6 +647,7 @@ const NewOrder = ({ user, onSubmit }) => {
                 ))}
               </div>}
             </div>
+
             <div className="card">
               <div className="barlow" style={{fontSize:17,fontWeight:700,marginBottom:12}}>🖼️ Imagens do Projeto</div>
               <div className="upload-zone" onClick={()=>imgRef.current.click()}>
@@ -595,30 +666,33 @@ const NewOrder = ({ user, onSubmit }) => {
               </div>}
             </div>
           </div>
+
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             <div className="card" style={{borderColor:"rgba(245,184,0,.3)"}}>
               <div className="barlow" style={{fontSize:17,fontWeight:700,marginBottom:12,color:"var(--yellow)"}}>Resumo</div>
               <div style={{display:"flex",flexDirection:"column",gap:9,fontSize:13}}>
+                {isVendedor && selectedClientId && <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--gray-light)"}}>Cliente</span><span style={{fontWeight:600,color:"var(--orange)"}}>{clientName}</span></div>}
                 {title && <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--gray-light)"}}>Ambiente</span><span style={{fontWeight:500,textAlign:"right",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title}</span></div>}
-                {clientName && <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--gray-light)"}}>Cliente</span><span>{clientName}</span></div>}
+                {!isVendedor && clientName && <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--gray-light)"}}>Solicitante</span><span>{clientName}</span></div>}
                 {ot && <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--gray-light)"}}>Nº OT</span><span style={{color:"var(--yellow)",fontWeight:600}}>{ot}</span></div>}
                 <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--gray-light)"}}>Arquivos</span><span>{files.length}</span></div>
                 <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--gray-light)"}}>Imagens</span><span>{images.length}</span></div>
                 <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--gray-light)"}}>Status</span><StatusBadge status="aguardando"/></div>
               </div>
               <div style={{borderTop:"1px solid var(--gray)",margin:"14px 0"}}/>
-              <button className="btn-primary" style={{width:"100%",justifyContent:"center",padding:13,fontSize:16,opacity:(!title||!description)?0.5:1}} onClick={handleSubmit} disabled={!title||!description||loading}>
+              <button className="btn-primary" style={{width:"100%",justifyContent:"center",padding:13,fontSize:16,opacity:canSubmit?1:0.5}} onClick={handleSubmit} disabled={!canSubmit||loading}>
                 {loading?<><div className="spinner"/>Enviando...</>:"🚀 LIBERAR PEDIDO"}
               </button>
-              <p style={{fontSize:11,color:"var(--gray-light)",textAlign:"center",marginTop:7}}>A equipe da Central será notificada.</p>
+              {isVendedor && !selectedClientId && <p style={{fontSize:11,color:"var(--orange)",textAlign:"center",marginTop:7}}>Selecione um cliente para continuar.</p>}
+              {!isVendedor && <p style={{fontSize:11,color:"var(--gray-light)",textAlign:"center",marginTop:7}}>A equipe da Central será notificada.</p>}
             </div>
             <div className="card" style={{background:"rgba(26,77,46,.1)"}}>
               <div style={{fontSize:13,color:"var(--gray-light)",lineHeight:1.9}}>
-                <div style={{fontWeight:600,color:"var(--white)",marginBottom:8}}>💡 Dicas para seu pedido:</div>
-                <div>• Informe o <strong style={{color:"var(--white)"}}>ambiente</strong> (sala, cozinha, etc.)</div>
-                <div>• Anexe o arquivo <strong style={{color:"var(--white)"}}>DXF ou CNC</strong> do projeto</div>
+                <div style={{fontWeight:600,color:"var(--white)",marginBottom:8}}>💡 Dicas:</div>
+                <div>• Informe o <strong style={{color:"var(--white)"}}>ambiente</strong></div>
+                <div>• Anexe o arquivo <strong style={{color:"var(--white)"}}>DXF ou CNC</strong></div>
                 <div>• Especifique <strong style={{color:"var(--white)"}}>material e espessura</strong></div>
-                <div>• Use o <strong style={{color:"var(--white)"}}>chat interno</strong> para mais arquivos depois</div>
+                <div>• Use o <strong style={{color:"var(--white)"}}>chat</strong> para mais arquivos depois</div>
               </div>
             </div>
           </div>
@@ -641,7 +715,7 @@ const OrderList = ({ user, orders, setSelectedOrder, setActiveTab, initialFilter
   return (
     <div>
       <div style={{marginBottom:18}}>
-        <div className="barlow" style={{fontSize:32,fontWeight:800}}>{isAdmin?"Todos os Pedidos":"Meus Pedidos"}</div>
+        <div className="barlow" style={{fontSize:32,fontWeight:800}}>{isAdmin?"Todos os Pedidos":user.role==="vendedor"?"Minha Carteira":"Meus Pedidos"}</div>
         <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{filtered.length} pedido(s){search?` para "${search}"`:""}</p>
       </div>
       <div style={{display:"flex",gap:10,marginBottom:18,alignItems:"center",flexWrap:"wrap"}}>
@@ -671,7 +745,6 @@ const OrderList = ({ user, orders, setSelectedOrder, setActiveTab, initialFilter
               </div>
               <div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>
                 {o.display_id} · {new Date(o.created_at).toLocaleDateString("pt-BR")}
-                {!isAdmin && user.company_id && o.client_id!==user.id && <span style={{marginLeft:8,color:"var(--yellow)",fontWeight:600}}>· 👤 {o.client_name}</span>}
               </div>
             </div>
             {isAdmin&&<div style={{fontSize:13}}><Highlight text={o.client_name||""} term={search}/></div>}
@@ -693,7 +766,6 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
   const [currentOrder,setCurrentOrder]=useState(order);
   const [preview,setPreview]=useState(null);
   const [uploading,setUploading]=useState(false);
-  // ── Delete pedido ──
   const [showDeleteModal,setShowDeleteModal]=useState(false);
   const [deleteConfirmText,setDeleteConfirmText]=useState("");
   const [deleting,setDeleting]=useState(false);
@@ -730,14 +802,14 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
       const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
       const path=`${order.id}/${Date.now()}-${safeName}`;
       const {error:upErr}=await supabase.storage.from("order-files").upload(path,file,{upsert:true});
-      if (upErr) { console.error(upErr); setUploading(false); return; }
+      if (upErr) { setUploading(false); return; }
       const {data:{publicUrl}}=supabase.storage.from("order-files").getPublicUrl(path);
       const isImage=file.type?.startsWith("image");
       await supabase.from("order_files").insert({order_id:order.id,name:file.name,size:(file.size/1024).toFixed(0)+" KB",type:file.name.split(".").pop(),url:publicUrl,is_image:isImage});
       await loadFiles();
       await supabase.from("messages").insert({order_id:order.id,sender_id:user.id,sender_name:user.name||user.email,sender_role:user.role,text:`📎 Novo arquivo adicionado: ${file.name}`});
       await loadMessages();
-    } catch(err){ console.error("Erro ao anexar:",err); }
+    } catch(err){ console.error(err); }
     setUploading(false); e.target.value="";
   };
 
@@ -761,41 +833,22 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
     } catch(e){}
   };
 
-  // ── Entrega D: Delete com limpeza total ───────────────────────────────────
   const handleDeleteOrder = async () => {
     if (deleteConfirmText !== "EXCLUIR") return;
     setDeleting(true);
     try {
-      // 1. Buscar arquivos para deletar do Storage
-      const { data: files } = await supabase
-        .from("order_files")
-        .select("url")
-        .eq("order_id", currentOrder.id);
-
-      // 2. Deletar arquivos do Storage
+      const { data: files } = await supabase.from("order_files").select("url").eq("order_id", currentOrder.id);
       if (files && files.length > 0) {
-        const paths = files
-          .map(f => extractStoragePath(f.url))
-          .filter(Boolean);
-        if (paths.length > 0) {
-          await supabase.storage.from("order-files").remove(paths);
-        }
+        const paths = files.map(f => extractStoragePath(f.url)).filter(Boolean);
+        if (paths.length > 0) await supabase.storage.from("order-files").remove(paths);
       }
-
-      // 3. Deletar o pedido (CASCADE apaga messages e order_files do banco)
       await supabase.from("orders").delete().eq("id", currentOrder.id);
-
-      // 4. Voltar e recarregar lista
       if (onDeleteSuccess) onDeleteSuccess();
-    } catch(err) {
-      console.error("Erro ao deletar pedido:", err);
-      setDeleting(false);
-    }
+    } catch(err) { console.error(err); setDeleting(false); }
   };
 
   return (
     <div>
-      {/* Modal de preview de arquivo */}
       {preview && (
         <div onClick={()=>setPreview(null)} style={{position:"fixed",top:0,left:0,width:"100vw",height:"100vh",background:"rgba(0,0,0,0.92)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}}>
           <div onClick={e=>e.stopPropagation()} style={{position:"relative",maxWidth:"90vw",maxHeight:"90vh"}}>
@@ -807,7 +860,6 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
         </div>
       )}
 
-      {/* ── Modal de confirmação de exclusão ── */}
       {showDeleteModal && (
         <div className="modal-overlay" style={{zIndex:600}}>
           <div style={{background:"var(--gray-dark)",border:"1px solid rgba(200,16,46,.4)",borderRadius:14,padding:28,maxWidth:440,width:"90%",animation:"fadeIn .25s ease"}}>
@@ -816,28 +868,13 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
             <div style={{background:"rgba(200,16,46,.08)",border:"1px solid rgba(200,16,46,.2)",borderRadius:8,padding:"12px 14px",marginBottom:16}}>
               <div style={{fontSize:14,fontWeight:600}}>{currentOrder.title}</div>
               <div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>{currentOrder.display_id} · {currentOrder.client_name}</div>
-              <div style={{fontSize:12,color:"var(--gray-light)",marginTop:6}}>
-                📎 {orderFiles.length} arquivo(s) · 💬 {messages.length} mensagem(s) — <strong style={{color:"#ef5350"}}>tudo será deletado</strong>
-              </div>
+              <div style={{fontSize:12,color:"var(--gray-light)",marginTop:6}}>📎 {orderFiles.length} arquivo(s) · 💬 {messages.length} mensagem(s) — <strong style={{color:"#ef5350"}}>tudo será deletado</strong></div>
             </div>
-            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>
-              Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>EXCLUIR</code> para confirmar:
-            </div>
-            <input
-              className="input-field"
-              value={deleteConfirmText}
-              onChange={e=>setDeleteConfirmText(e.target.value)}
-              placeholder="EXCLUIR"
-              style={{borderColor:deleteConfirmText==="EXCLUIR"?"#ef5350":"var(--gray)"}}
-            />
+            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>EXCLUIR</code> para confirmar:</div>
+            <input className="input-field" value={deleteConfirmText} onChange={e=>setDeleteConfirmText(e.target.value)} placeholder="EXCLUIR" style={{borderColor:deleteConfirmText==="EXCLUIR"?"#ef5350":"var(--gray)"}}/>
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
               <button className="btn-ghost" onClick={()=>{setShowDeleteModal(false);setDeleteConfirmText("");}}>Cancelar</button>
-              <button
-                className="btn-danger"
-                onClick={handleDeleteOrder}
-                disabled={deleteConfirmText!=="EXCLUIR"||deleting}
-                style={{opacity:deleteConfirmText==="EXCLUIR"?1:0.5,cursor:deleteConfirmText==="EXCLUIR"?"pointer":"not-allowed"}}
-              >
+              <button className="btn-danger" onClick={handleDeleteOrder} disabled={deleteConfirmText!=="EXCLUIR"||deleting} style={{opacity:deleteConfirmText==="EXCLUIR"?1:0.5}}>
                 {deleting?<><div className="spinner"/>Excluindo...</>:"🗑️ Excluir Definitivamente"}
               </button>
             </div>
@@ -845,7 +882,6 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
         </div>
       )}
 
-      {/* Cabeçalho */}
       <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:24,flexWrap:"wrap"}}>
         <button className="btn-ghost" onClick={onBack} style={{padding:"8px 14px"}}><Icon name="arrow" size={14}/>Voltar</button>
         <div style={{flex:1}}>
@@ -858,21 +894,16 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
         {isAdmin && NEXT_STATUS[currentOrder.status] && (
           <button className="btn-primary" onClick={handleAdvance}>▶ Avançar: {STATUS_CONFIG[NEXT_STATUS[currentOrder.status]]?.label}</button>
         )}
-        {/* Botão de excluir — admin only */}
         {isAdmin && (
-          <button
-            onClick={()=>setShowDeleteModal(true)}
-            title="Excluir pedido"
+          <button onClick={()=>setShowDeleteModal(true)} title="Excluir pedido"
             style={{background:"rgba(200,16,46,.1)",border:"1.5px solid rgba(200,16,46,.3)",borderRadius:6,color:"#ef5350",cursor:"pointer",padding:"9px 14px",display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:600,transition:"all .2s"}}
-            onMouseEnter={e=>{e.currentTarget.style.background="rgba(200,16,46,.2)";e.currentTarget.style.borderColor="#ef5350";}}
-            onMouseLeave={e=>{e.currentTarget.style.background="rgba(200,16,46,.1)";e.currentTarget.style.borderColor="rgba(200,16,46,.3)";}}
-          >
+            onMouseEnter={e=>{e.currentTarget.style.background="rgba(200,16,46,.2)";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="rgba(200,16,46,.1)";}}>
             <Icon name="trash" size={15}/>Excluir
           </button>
         )}
       </div>
 
-      {/* Progresso */}
       <div className="card" style={{marginBottom:20}}>
         <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:4}}>Progresso do Pedido</div>
         <StatusSteps currentStatus={currentOrder.status} stepHistory={currentOrder.step_history||{}} createdAt={currentOrder.created_at}/>
@@ -914,8 +945,8 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
             </div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <input ref={attachRef} type="file" style={{display:"none"}} onChange={handleAttachFile} accept=".dxf,.cnc,.dwg,.pdf,.svg,.nc,.zip,image/*"/>
-              <button onClick={()=>attachRef.current.click()} disabled={uploading} title="Anexar arquivo ao pedido"
-                style={{background:"var(--gray-mid)",border:"1.5px solid var(--gray)",borderRadius:8,color:"var(--gray-light)",cursor:"pointer",padding:"11px 12px",flexShrink:0,transition:"all .2s",display:"flex",alignItems:"center",opacity:uploading?0.5:1}}
+              <button onClick={()=>attachRef.current.click()} disabled={uploading}
+                style={{background:"var(--gray-mid)",border:"1.5px solid var(--gray)",borderRadius:8,color:"var(--gray-light)",cursor:"pointer",padding:"11px 12px",flexShrink:0,display:"flex",alignItems:"center",opacity:uploading?0.5:1}}
                 onMouseEnter={e=>{ e.currentTarget.style.borderColor="var(--yellow)"; e.currentTarget.style.color="var(--yellow)"; }}
                 onMouseLeave={e=>{ e.currentTarget.style.borderColor="var(--gray)"; e.currentTarget.style.color="var(--gray-light)"; }}>
                 {uploading ? <div className="spinner" style={{width:16,height:16}}/> : <Icon name="paperclip" size={16}/>}
@@ -923,7 +954,6 @@ const OrderDetail = ({ order, user, onBack, onUpdateStatus, onDeleteSuccess }) =
               <input className="input-field" placeholder="Digite uma mensagem..." value={newMsg} onChange={e=>setNewMsg(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSend()} style={{flex:1}}/>
               <button className="btn-primary" onClick={handleSend} disabled={sending} style={{padding:"0 16px",flexShrink:0}}><Icon name="send" size={16}/></button>
             </div>
-            <div style={{fontSize:11,color:"var(--gray-light)",marginTop:6,textAlign:"center"}}>📎 Use o clipe para enviar arquivos adicionais a qualquer momento</div>
           </div>
         </div>
 
@@ -999,7 +1029,6 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilte
     prod:orders.filter(o=>["analise","corte","filetamento"].includes(o.status)).length,
     prontos:orders.filter(o=>o.status==="pronto").length,
   };
-  const verAguardando=()=>{ setOrdersFilter("aguardando"); setActiveTab("orders"); };
   const dashFiltered=orders.filter(o=>matchSearch(o,dashSearch));
 
   return (
@@ -1021,7 +1050,7 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilte
       {stats.aguardando>0&&(
         <div style={{background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.3)",borderRadius:12,padding:"14px 20px",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
           <div style={{fontWeight:600,color:"var(--yellow)",fontSize:15}}>⚠️ {stats.aguardando} pedido(s) aguardando análise</div>
-          <button onClick={verAguardando} style={{background:"var(--yellow)",color:"var(--black)",border:"none",borderRadius:6,padding:"8px 18px",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Ver Aguardando →</button>
+          <button onClick={()=>{ setOrdersFilter("aguardando"); setActiveTab("orders"); }} style={{background:"var(--yellow)",color:"var(--black)",border:"none",borderRadius:6,padding:"8px 18px",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Ver Aguardando →</button>
         </div>
       )}
       <div className="card">
@@ -1058,10 +1087,7 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilte
                 <div style={{fontSize:11,color:"var(--gray-light)",marginTop:2}}>{o.display_id}</div>
               </div>
               <div>
-                {companyName?(<>
-                  <div style={{fontSize:12,color:"var(--yellow)",fontWeight:600}}>🏢 {companyName}</div>
-                  <div style={{fontSize:11,color:"var(--gray-light)",marginTop:2}}>👤 <Highlight text={o.client_name||""} term={dashSearch}/></div>
-                </>):(
+                {companyName?(<><div style={{fontSize:12,color:"var(--yellow)",fontWeight:600}}>🏢 {companyName}</div><div style={{fontSize:11,color:"var(--gray-light)",marginTop:2}}>👤 <Highlight text={o.client_name||""} term={dashSearch}/></div></>):(
                   <div style={{fontSize:13,color:"var(--gray-light)"}}>👤 <Highlight text={o.client_name||""} term={dashSearch}/></div>
                 )}
               </div>
@@ -1076,7 +1102,7 @@ const AdminDashboard = ({ orders, setSelectedOrder, setActiveTab, setOrdersFilte
         })}
         {dashFiltered.length>10 && (
           <div style={{padding:"12px 16px",textAlign:"center",fontSize:13,color:"var(--gray-light)",borderTop:"1px solid var(--gray-mid)"}}>
-            Mostrando 10 de {dashFiltered.length} resultados ·{" "}
+            Mostrando 10 de {dashFiltered.length} ·{" "}
             <span style={{color:"var(--yellow)",cursor:"pointer",fontWeight:600}} onClick={()=>{ setOrdersFilter("all"); setActiveTab("orders"); }}>Ver todos →</span>
           </div>
         )}
@@ -1093,10 +1119,8 @@ const CompaniesPage = () => {
   const [newPhone,setNewPhone]=useState("");
   const [creating,setCreating]=useState(false);
   const [copied,setCopied]=useState(null);
-
   const loadCompanies=async()=>{ const {data}=await supabase.from("companies").select("*").order("created_at",{ascending:false}); setCompanies(data||[]); };
   useEffect(()=>{ loadCompanies(); },[]);
-
   const handleCreate=async()=>{
     if (!newName.trim()) return; setCreating(true);
     let key,exists=true;
@@ -1104,12 +1128,10 @@ const CompaniesPage = () => {
     await supabase.from("companies").insert({name:newName.trim(),phone:newPhone.trim()||null,access_key:key});
     setCreating(false);setShowCreate(false);setNewName("");setNewPhone("");loadCompanies();
   };
-
   const handleCopy=(key)=>{ navigator.clipboard?.writeText(key); setCopied(key); setTimeout(()=>setCopied(null),2500); };
-
   return (
     <div>
-      {showCreate&&(<div className="modal-overlay"><div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}><div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:16}}>🏢 Cadastrar Empresa</div><div style={{display:"flex",flexDirection:"column",gap:13}}><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>NOME DA EMPRESA *</label><input className="input-field" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Ex: Calais Móveis Ltda."/></div><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>TELEFONE</label><input className="input-field" value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="(31) 99999-0000"/></div><div style={{background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.2)",borderRadius:8,padding:"10px 14px",fontSize:13,lineHeight:1.7}}>💡 Uma <strong>chave de 6 dígitos</strong> será gerada automaticamente.</div></div><div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>setShowCreate(false)}>Cancelar</button><button className="btn-primary" onClick={handleCreate} disabled={creating||!newName.trim()}>{creating?<><div className="spinner"/>Criando...</>:"🏢 Criar Empresa"}</button></div></div></div>)}
+      {showCreate&&(<div className="modal-overlay"><div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}><div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:16}}>🏢 Cadastrar Empresa</div><div style={{display:"flex",flexDirection:"column",gap:13}}><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>NOME DA EMPRESA *</label><input className="input-field" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Ex: Calais Móveis Ltda."/></div><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>TELEFONE</label><input className="input-field" value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="(31) 99999-0000"/></div></div><div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>setShowCreate(false)}>Cancelar</button><button className="btn-primary" onClick={handleCreate} disabled={creating||!newName.trim()}>{creating?<><div className="spinner"/>Criando...</>:"🏢 Criar Empresa"}</button></div></div></div>)}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
         <div><div className="barlow" style={{fontSize:32,fontWeight:800}}>Empresas</div><p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{companies.length} empresa(s)</p></div>
         <button className="btn-primary" onClick={()=>setShowCreate(true)}><Icon name="plus" size={16}/>Nova Empresa</button>
@@ -1131,20 +1153,10 @@ const CompaniesPage = () => {
                   {copied===co.access_key?"✅ Copiado!":"📋 Copiar"}
                 </button>
               </div>
-              <div style={{fontSize:11,color:"var(--gray-light)",marginTop:6}}>Funcionários usam esta chave no cadastro</div>
             </div>
           </div>
         </div>
       ))}
-      <div className="card" style={{background:"rgba(26,77,46,.08)",border:"1px solid rgba(26,107,46,.2)",marginTop:8}}>
-        <div className="barlow" style={{fontSize:16,fontWeight:700,marginBottom:10,color:"#4caf72"}}>Como vincular funcionários</div>
-        <div style={{fontSize:13,color:"var(--gray-light)",lineHeight:1.9}}>
-          <div>1. Crie a empresa aqui e anote a <strong style={{color:"var(--white)"}}>chave de 6 dígitos</strong></div>
-          <div>2. O funcionário acessa o portal e clica em <strong style={{color:"var(--white)"}}>CADASTRAR</strong></div>
-          <div>3. Preenche nome, telefone, e-mail, senha e a <strong style={{color:"var(--white)"}}>Chave da Empresa</strong></div>
-          <div>4. Pronto — ele verá todos os pedidos da empresa e poderá criar novos</div>
-        </div>
-      </div>
     </div>
   );
 };
@@ -1152,6 +1164,7 @@ const CompaniesPage = () => {
 // ─── USERS PAGE ───────────────────────────────────────────────────────────────
 const UsersPage = ({ orders }) => {
   const [clients,setClients]=useState([]);
+  const [vendedores,setVendedores]=useState([]);
   const [editClient,setEditClient]=useState(null);
   const [editName,setEditName]=useState("");
   const [editPhone,setEditPhone]=useState("");
@@ -1159,6 +1172,9 @@ const UsersPage = ({ orders }) => {
   const [deleteConfirm,setDeleteConfirm]=useState("");
   const [resetClient,setResetClient]=useState(null);
   const [resetEmail,setResetEmail]=useState("");
+  // Entrega B: vincular vendedor
+  const [vinculandoClient,setVinculandoClient]=useState(null);
+  const [selectedVendedor,setSelectedVendedor]=useState("");
   const [saving,setSaving]=useState(false);
   const [toast,setToast]=useState(null);
   const showToast=(msg,type="green")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),4000); };
@@ -1166,16 +1182,23 @@ const UsersPage = ({ orders }) => {
   const loadClients=async()=>{
     const {data:cd}=await supabase.from("profiles").select("*").eq("role","client");
     const {data:coD}=await supabase.from("companies").select("id,name");
+    const {data:vD}=await supabase.from("profiles").select("id,name").eq("role","vendedor");
     const cMap=Object.fromEntries((coD||[]).map(c=>[c.id,c.name]));
-    setClients((cd||[]).map(c=>({...c,company_name:c.company_id?(cMap[c.company_id]||null):null})));
+    const vMap=Object.fromEntries((vD||[]).map(v=>[v.id,v.name]));
+    setVendedores(vD||[]);
+    setClients((cd||[]).map(c=>({
+      ...c,
+      company_name:c.company_id?(cMap[c.company_id]||null):null,
+      vendedor_name:c.vendedor_id?(vMap[c.vendedor_id]||null):null,
+    })));
   };
   useEffect(()=>{ loadClients(); },[]);
 
   const displayName=(c)=>c.name||c.email?.split("@")[0]||"—";
   const displayInitial=(c)=>(c.name||c.email||"?").charAt(0).toUpperCase();
   const orderCount=(c)=>orders.filter(o=>o.client_id===c.id).length;
-  const handleEdit=(c)=>{ setEditClient(c);setEditName(c.name||"");setEditPhone(c.phone||""); };
 
+  const handleEdit=(c)=>{ setEditClient(c);setEditName(c.name||"");setEditPhone(c.phone||""); };
   const handleSaveEdit=async()=>{
     if (!editName.trim()) return; setSaving(true);
     await supabase.from("profiles").update({name:editName.trim(),phone:editPhone.trim()}).eq("id",editClient.id);
@@ -1196,6 +1219,19 @@ const UsersPage = ({ orders }) => {
     if(error) showToast("Erro: "+error.message,"red"); else showToast(`Link enviado para ${resetEmail}!`);
   };
 
+  // Entrega B: vincular/desvincular vendedor
+  const handleVincular=async()=>{
+    setSaving(true);
+    await supabase.from("profiles").update({vendedor_id:selectedVendedor||null}).eq("id",vinculandoClient.id);
+    setSaving(false);
+    const vName=vendedores.find(v=>v.id===selectedVendedor)?.name;
+    showToast(vName?`Cliente vinculado a ${vName}!`:"Vínculo removido.");
+    setVinculandoClient(null);setSelectedVendedor("");
+    loadClients();
+  };
+
+  const openVincular=(c)=>{ setVinculandoClient(c); setSelectedVendedor(c.vendedor_id||""); };
+
   const btnAction=(onClick,title,emoji,danger=false)=>(
     <button title={title} onClick={onClick} style={{background:"var(--gray-mid)",border:"1px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"6px 9px",fontSize:15,transition:"all .2s",lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.color=danger?"#ef5350":"var(--white)"} onMouseLeave={e=>e.currentTarget.style.color="var(--gray-light)"}>{emoji}</button>
   );
@@ -1203,27 +1239,91 @@ const UsersPage = ({ orders }) => {
   return (
     <div>
       {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:600,background:toast.type==="red"?"#b71c1c":"#1b5e20",border:`1px solid ${toast.type==="red"?"#ef5350":"#4caf72"}`,borderRadius:10,padding:"12px 20px",color:"white",fontSize:14,fontWeight:500,animation:"fadeIn .3s ease"}}>{toast.type==="red"?"🗑️":"✅"} {toast.msg}</div>}
+
+      {/* Modal editar */}
       {editClient&&(<div className="modal-overlay"><div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:"28px",maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}><div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4}}>✏️ Editar Cliente</div><div style={{fontSize:12,color:"var(--gray-light)",marginBottom:20,background:"var(--gray-mid)",borderRadius:6,padding:"6px 10px",display:"inline-block"}}>{editClient.email||editClient.id.slice(0,16)+"…"}</div><div style={{display:"flex",flexDirection:"column",gap:13}}><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>NOME</label><input className="input-field" value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Nome do cliente"/></div><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>TELEFONE</label><input className="input-field" value={editPhone} onChange={e=>setEditPhone(e.target.value)} placeholder="(31) 99999-0000"/></div></div><div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>setEditClient(null)}>Cancelar</button><button className="btn-primary" onClick={handleSaveEdit} disabled={saving||!editName.trim()}>{saving?<><div className="spinner"/>Salvando...</>:"💾 Salvar"}</button></div></div></div>)}
+
+      {/* Modal reset senha */}
       {resetClient&&(<div className="modal-overlay"><div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:"28px",maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}><div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4}}>🔑 Redefinir Senha</div><div style={{background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.2)",borderRadius:8,padding:"10px 14px",fontSize:13,marginBottom:18,lineHeight:1.7}}>💡 Será enviado um <strong>link de redefinição</strong> por e-mail.</div><div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>E-MAIL DO CLIENTE</label><input className="input-field" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="email@cliente.com"/></div><div style={{display:"flex",gap:10,marginTop:20,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>setResetClient(null)}>Cancelar</button><button className="btn-primary" onClick={handleResetPassword} disabled={saving||!resetEmail.trim()}>{saving?<><div className="spinner"/>Enviando...</>:"📧 Enviar Link"}</button></div></div></div>)}
-      {deleteClient&&(<div className="modal-overlay"><div style={{background:"var(--gray-dark)",border:"1px solid rgba(200,16,46,.4)",borderRadius:14,padding:"28px",maxWidth:440,width:"90%",animation:"fadeIn .25s ease"}}><div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4,color:"#ef5350"}}>⚠️ Excluir Cliente</div><div style={{fontSize:13,color:"var(--gray-light)",marginBottom:16}}>Esta ação é <strong style={{color:"var(--white)"}}>permanente e irreversível</strong>.</div><div style={{background:"rgba(200,16,46,.08)",border:"1px solid rgba(200,16,46,.2)",borderRadius:8,padding:"12px 14px",marginBottom:16}}><div style={{fontSize:14,fontWeight:600}}>{displayName(deleteClient)}</div>{deleteClient.email&&<div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>{deleteClient.email}</div>}<div style={{fontSize:12,color:"var(--gray-light)",marginTop:6}}>{orderCount(deleteClient)} pedido(s) — <strong style={{color:"var(--white)"}}>histórico mantido</strong>.</div></div><div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>DELETAR</code> para confirmar:</div><input className="input-field" value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="DELETAR" style={{borderColor:deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}}/><div style={{fontSize:12,color:"var(--gray-light)",marginTop:10,padding:"8px 10px",background:"rgba(255,255,255,.03)",borderRadius:6}}>ℹ️ Login permanece no Supabase — remova em Authentication → Users se necessário.</div><div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>{setDeleteClient(null);setDeleteConfirm("");}}>Cancelar</button><button style={{background:deleteConfirm==="DELETAR"?"#c62828":"var(--gray-mid)",color:"white",border:`1px solid ${deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}`,borderRadius:6,padding:"11px 22px",fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,cursor:deleteConfirm==="DELETAR"?"pointer":"not-allowed",opacity:deleteConfirm==="DELETAR"?1:0.5,display:"inline-flex",alignItems:"center",gap:8,transition:"all .2s"}} onClick={handleDelete} disabled={deleteConfirm!=="DELETAR"||saving}>{saving?<><div className="spinner"/>Excluindo...</>:"🗑️ Excluir Definitivamente"}</button></div></div></div>)}
+
+      {/* Modal deletar cliente */}
+      {deleteClient&&(<div className="modal-overlay"><div style={{background:"var(--gray-dark)",border:"1px solid rgba(200,16,46,.4)",borderRadius:14,padding:"28px",maxWidth:440,width:"90%",animation:"fadeIn .25s ease"}}><div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4,color:"#ef5350"}}>⚠️ Excluir Cliente</div><div style={{fontSize:13,color:"var(--gray-light)",marginBottom:16}}>Esta ação é <strong style={{color:"var(--white)"}}>permanente e irreversível</strong>.</div><div style={{background:"rgba(200,16,46,.08)",border:"1px solid rgba(200,16,46,.2)",borderRadius:8,padding:"12px 14px",marginBottom:16}}><div style={{fontSize:14,fontWeight:600}}>{displayName(deleteClient)}</div>{deleteClient.email&&<div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>{deleteClient.email}</div>}<div style={{fontSize:12,color:"var(--gray-light)",marginTop:6}}>{orderCount(deleteClient)} pedido(s) — histórico mantido.</div></div><div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>DELETAR</code>:</div><input className="input-field" value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="DELETAR" style={{borderColor:deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}}/><div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>{setDeleteClient(null);setDeleteConfirm("");}}>Cancelar</button><button style={{background:deleteConfirm==="DELETAR"?"#c62828":"var(--gray-mid)",color:"white",border:`1px solid ${deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}`,borderRadius:6,padding:"11px 22px",fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,cursor:deleteConfirm==="DELETAR"?"pointer":"not-allowed",opacity:deleteConfirm==="DELETAR"?1:0.5,display:"inline-flex",alignItems:"center",gap:8,transition:"all .2s"}} onClick={handleDelete} disabled={deleteConfirm!=="DELETAR"||saving}>{saving?<><div className="spinner"/>Excluindo...</>:"🗑️ Excluir Definitivamente"}</button></div></div></div>)}
+
+      {/* ── Entrega B: Modal vincular vendedor ── */}
+      {vinculandoClient&&(
+        <div className="modal-overlay">
+          <div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:420,width:"90%",animation:"fadeIn .25s ease"}}>
+            <div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4}}>🤝 Vincular Vendedor</div>
+            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:16}}>
+              Cliente: <strong style={{color:"var(--white)"}}>{displayName(vinculandoClient)}</strong>
+            </div>
+            {vendedores.length===0 ? (
+              <div style={{background:"rgba(232,119,34,.08)",border:"1px solid rgba(232,119,34,.2)",borderRadius:8,padding:"12px 14px",fontSize:13,color:"var(--orange)"}}>
+                ⚠️ Nenhum vendedor cadastrado ainda. Crie um vendedor primeiro na página Vendedores.
+              </div>
+            ) : (
+              <>
+                <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:8}}>SELECIONE O VENDEDOR RESPONSÁVEL</label>
+                <select className="input-field" value={selectedVendedor} onChange={e=>setSelectedVendedor(e.target.value)}>
+                  <option value="">— Sem vendedor (fila geral) —</option>
+                  {vendedores.map(v=>(
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+                {selectedVendedor && (
+                  <div style={{marginTop:8,fontSize:12,color:"var(--gray-light)"}}>
+                    ✅ Pedidos futuros deste cliente chegarão para <strong style={{color:"var(--white)"}}>{vendedores.find(v=>v.id===selectedVendedor)?.name}</strong>
+                  </div>
+                )}
+              </>
+            )}
+            <div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}>
+              <button className="btn-ghost" onClick={()=>{setVinculandoClient(null);setSelectedVendedor("");}}>Cancelar</button>
+              {vendedores.length>0 && (
+                <button className="btn-primary" onClick={handleVincular} disabled={saving}>
+                  {saving?<><div className="spinner"/>Salvando...</>:"💾 Salvar Vínculo"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{marginBottom:22}}>
         <div className="barlow" style={{fontSize:32,fontWeight:800}}>Clientes</div>
         <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{clients.length} clientes cadastrados</p>
       </div>
+
       <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div className="table-row table-header" style={{gridTemplateColumns:"2fr 1fr 70px 110px",cursor:"default"}}><span>Cliente</span><span>Telefone</span><span>Pedidos</span><span></span></div>
+        <div className="table-row table-header" style={{gridTemplateColumns:"2fr 1fr 70px 140px",cursor:"default"}}>
+          <span>Cliente</span><span>Telefone</span><span>Pedidos</span><span></span>
+        </div>
         {clients.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--gray-light)"}}>Nenhum cliente cadastrado.</div>}
         {clients.map(c=>(
-          <div key={c.id} className="table-row" style={{gridTemplateColumns:"2fr 1fr 70px 110px"}}>
+          <div key={c.id} className="table-row" style={{gridTemplateColumns:"2fr 1fr 70px 140px"}}>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               <div style={{width:36,height:36,borderRadius:"50%",background:"var(--yellow)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"var(--black)",fontSize:14,flexShrink:0}}>{displayInitial(c)}</div>
-              <div><div style={{fontWeight:500}}>{displayName(c)}</div><div style={{fontSize:12,color:"var(--gray-light)"}}>{c.email||"—"}</div>{c.company_name&&<div style={{fontSize:11,color:"var(--yellow)",marginTop:2}}>🏢 {c.company_name}</div>}</div>
+              <div>
+                <div style={{fontWeight:500}}>{displayName(c)}</div>
+                <div style={{fontSize:12,color:"var(--gray-light)"}}>{c.email||"—"}</div>
+                {c.company_name&&<div style={{fontSize:11,color:"var(--yellow)",marginTop:2}}>🏢 {c.company_name}</div>}
+                {/* Entrega B: badge do vendedor */}
+                {c.vendedor_name
+                  ? <div style={{fontSize:11,color:"var(--orange)",marginTop:2}}>🤝 {c.vendedor_name}</div>
+                  : <div style={{fontSize:11,color:"var(--gray-light)",marginTop:2}}>🤝 Sem vendedor</div>
+                }
+              </div>
             </div>
             <div style={{fontSize:13,color:"var(--gray-light)"}}>{c.phone||"—"}</div>
             <div style={{fontSize:14,fontWeight:600,color:"var(--yellow)"}}>{orderCount(c)}</div>
             <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
               {btnAction(()=>handleEdit(c),"Editar","✏️")}
               {btnAction(()=>{setResetClient(c);setResetEmail(c.email||"");},"Redefinir senha","🔑")}
+              {/* Entrega B: botão vincular */}
+              <button title="Vincular vendedor" onClick={()=>openVincular(c)}
+                style={{background:c.vendedor_id?"rgba(232,119,34,.15)":"var(--gray-mid)",border:`1px solid ${c.vendedor_id?"rgba(232,119,34,.4)":"var(--gray)"}`,borderRadius:6,color:c.vendedor_id?"var(--orange)":"var(--gray-light)",cursor:"pointer",padding:"6px 9px",fontSize:15,transition:"all .2s",lineHeight:1}}
+                onMouseEnter={e=>e.currentTarget.style.color="var(--orange)"}
+                onMouseLeave={e=>e.currentTarget.style.color=c.vendedor_id?"var(--orange)":"var(--gray-light)"}>🤝</button>
               {btnAction(()=>setDeleteClient(c),"Excluir","🗑️",true)}
             </div>
           </div>
@@ -1247,16 +1347,13 @@ const VendedoresPage = () => {
   const [deleteConfirm,setDeleteConfirm]=useState("");
   const [deleting,setDeleting]=useState(false);
   const [toast,setToast]=useState(null);
-
   const showToast=(msg,type="green")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),4000); };
 
   const loadVendedores=async()=>{
     setLoading(true);
     const {data}=await supabase.from("profiles").select("*").eq("role","vendedor").order("created_at",{ascending:false});
-    setVendedores(data||[]);
-    setLoading(false);
+    setVendedores(data||[]); setLoading(false);
   };
-
   useEffect(()=>{ loadVendedores(); },[]);
 
   const handleCreate=async()=>{
@@ -1264,80 +1361,43 @@ const VendedoresPage = () => {
     setCreating(true);
     try {
       const {data:{session}}=await supabase.auth.getSession();
-      const supabaseUrl=import.meta.env.VITE_SUPABASE_URL;
-      const res=await fetch(`${supabaseUrl}/functions/v1/create-vendedor`,{
+      const res=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-vendedor`,{
         method:"POST",
         headers:{"Content-Type":"application/json","Authorization":`Bearer ${session.access_token}`},
         body:JSON.stringify({name:newName.trim(),email:newEmail.trim().toLowerCase(),password:newPassword,phone:newPhone.trim()})
       });
       const result=await res.json();
-      if (!res.ok) {
-        showToast("Erro: "+(result.error||"Falha ao criar vendedor."),"red");
-      } else {
-        showToast(`Vendedor ${newName} criado com sucesso!`);
-        setShowCreate(false);
-        setNewName("");setNewEmail("");setNewPassword("");setNewPhone("");
-        loadVendedores();
-      }
-    } catch(e) {
-      showToast("Erro de conexão com a função.","red");
-    }
+      if (!res.ok) showToast("Erro: "+(result.error||"Falha ao criar."),"red");
+      else { showToast(`Vendedor ${newName} criado!`); setShowCreate(false); setNewName("");setNewEmail("");setNewPassword("");setNewPhone(""); loadVendedores(); }
+    } catch(e) { showToast("Erro de conexão.","red"); }
     setCreating(false);
   };
 
   const handleDelete=async()=>{
     if (deleteConfirm!=="DELETAR"||!deleteVendedor) return;
     setDeleting(true);
-    // Remove o perfil (login no Supabase Auth persiste — admin remove manualmente se necessário)
     await supabase.from("profiles").delete().eq("id",deleteVendedor.id);
-    setDeleting(false);
-    setDeleteVendedor(null);
-    setDeleteConfirm("");
-    showToast("Vendedor removido.","red");
-    loadVendedores();
+    setDeleting(false); setDeleteVendedor(null); setDeleteConfirm("");
+    showToast("Vendedor removido.","red"); loadVendedores();
   };
 
   const displayInitial=(v)=>(v.name||v.email||"?").charAt(0).toUpperCase();
 
   return (
     <div>
-      {/* Toast */}
-      {toast&&(
-        <div style={{position:"fixed",top:20,right:20,zIndex:600,background:toast.type==="red"?"#b71c1c":"#1b5e20",border:`1px solid ${toast.type==="red"?"#ef5350":"#4caf72"}`,borderRadius:10,padding:"12px 20px",color:"white",fontSize:14,fontWeight:500,animation:"fadeIn .3s ease"}}>
-          {toast.type==="red"?"🗑️":"✅"} {toast.msg}
-        </div>
-      )}
+      {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:600,background:toast.type==="red"?"#b71c1c":"#1b5e20",border:`1px solid ${toast.type==="red"?"#ef5350":"#4caf72"}`,borderRadius:10,padding:"12px 20px",color:"white",fontSize:14,fontWeight:500,animation:"fadeIn .3s ease"}}>{toast.type==="red"?"🗑️":"✅"} {toast.msg}</div>}
 
-      {/* Modal criar vendedor */}
       {showCreate&&(
         <div className="modal-overlay">
           <div style={{background:"var(--gray-dark)",border:"1px solid var(--gray)",borderRadius:14,padding:28,maxWidth:440,width:"90%",animation:"fadeIn .25s ease"}}>
             <div className="barlow" style={{fontSize:22,fontWeight:800,marginBottom:4}}>🤝 Criar Vendedor</div>
-            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:18}}>O vendedor poderá fazer login e ver os pedidos da própria carteira.</div>
+            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:18}}>O vendedor poderá fazer login e criar pedidos pela carteira de clientes.</div>
             <div style={{display:"flex",flexDirection:"column",gap:13}}>
-              <div>
-                <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>NOME COMPLETO *</label>
-                <input className="input-field" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Ex: João Vendedor"/>
-              </div>
-              <div>
-                <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>E-MAIL *</label>
-                <input className="input-field" type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} placeholder="joao@central.com"/>
-              </div>
-              <div>
-                <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>SENHA INICIAL *</label>
-                <input className="input-field" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres"/>
-                <div style={{fontSize:11,color:"var(--gray-light)",marginTop:3}}>O vendedor pode alterar depois pelo e-mail de redefinição.</div>
-              </div>
-              <div>
-                <label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>TELEFONE / WHATSAPP</label>
-                <input className="input-field" value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="(31) 99999-0000"/>
-              </div>
+              <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>NOME COMPLETO *</label><input className="input-field" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Ex: João Vendedor"/></div>
+              <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>E-MAIL *</label><input className="input-field" type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} placeholder="joao@central.com"/></div>
+              <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>SENHA INICIAL *</label><input className="input-field" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres"/></div>
+              <div><label style={{fontSize:11,color:"var(--gray-light)",display:"block",marginBottom:5}}>TELEFONE</label><input className="input-field" value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="(31) 99999-0000"/></div>
             </div>
-            {!import.meta.env.VITE_SUPABASE_URL?.includes("supabase.co") && (
-              <div style={{background:"rgba(232,119,34,.1)",border:"1px solid rgba(232,119,34,.3)",borderRadius:8,padding:"10px 12px",fontSize:12,color:"var(--orange)",marginTop:14}}>
-                ⚠️ Verifique se a Edge Function <code>create-vendedor</code> está deployada no Supabase.
-              </div>
-            )}
             <div style={{display:"flex",gap:10,marginTop:22,justifyContent:"flex-end"}}>
               <button className="btn-ghost" onClick={()=>setShowCreate(false)}>Cancelar</button>
               <button className="btn-primary" onClick={handleCreate} disabled={creating||!newName.trim()||!newEmail.trim()||!newPassword.trim()}>
@@ -1348,23 +1408,20 @@ const VendedoresPage = () => {
         </div>
       )}
 
-      {/* Modal deletar vendedor */}
       {deleteVendedor&&(
         <div className="modal-overlay">
           <div style={{background:"var(--gray-dark)",border:"1px solid rgba(200,16,46,.4)",borderRadius:14,padding:28,maxWidth:440,width:"90%",animation:"fadeIn .25s ease"}}>
             <div className="barlow" style={{fontSize:22,fontWeight:800,color:"#ef5350",marginBottom:4}}>⚠️ Remover Vendedor</div>
-            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:16}}>O perfil será removido do sistema. O login no Supabase Auth persiste — remova manualmente em Authentication → Users se necessário.</div>
+            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:16}}>O perfil será removido. O login no Supabase Auth persiste — remova manualmente se necessário.</div>
             <div style={{background:"rgba(200,16,46,.08)",border:"1px solid rgba(200,16,46,.2)",borderRadius:8,padding:"12px 14px",marginBottom:16}}>
               <div style={{fontSize:14,fontWeight:600}}>{deleteVendedor.name||deleteVendedor.email}</div>
               {deleteVendedor.email&&<div style={{fontSize:12,color:"var(--gray-light)",marginTop:2}}>{deleteVendedor.email}</div>}
             </div>
-            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>
-              Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>DELETAR</code> para confirmar:
-            </div>
+            <div style={{fontSize:13,color:"var(--gray-light)",marginBottom:8}}>Digite <code style={{color:"#ef5350",background:"rgba(200,16,46,.1)",padding:"1px 6px",borderRadius:4}}>DELETAR</code>:</div>
             <input className="input-field" value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="DELETAR" style={{borderColor:deleteConfirm==="DELETAR"?"#ef5350":"var(--gray)"}}/>
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
               <button className="btn-ghost" onClick={()=>{setDeleteVendedor(null);setDeleteConfirm("");}}>Cancelar</button>
-              <button className="btn-danger" onClick={handleDelete} disabled={deleteConfirm!=="DELETAR"||deleting} style={{opacity:deleteConfirm==="DELETAR"?1:0.5,cursor:deleteConfirm==="DELETAR"?"pointer":"not-allowed"}}>
+              <button className="btn-danger" onClick={handleDelete} disabled={deleteConfirm!=="DELETAR"||deleting} style={{opacity:deleteConfirm==="DELETAR"?1:0.5}}>
                 {deleting?<><div className="spinner"/>Removendo...</>:"🗑️ Remover"}
               </button>
             </div>
@@ -1372,28 +1429,16 @@ const VendedoresPage = () => {
         </div>
       )}
 
-      {/* Cabeçalho */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
-        <div>
-          <div className="barlow" style={{fontSize:32,fontWeight:800}}>Vendedores</div>
-          <p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{vendedores.length} vendedor(es) cadastrado(s)</p>
-        </div>
+        <div><div className="barlow" style={{fontSize:32,fontWeight:800}}>Vendedores</div><p style={{color:"var(--gray-light)",fontSize:14,marginTop:4}}>{vendedores.length} vendedor(es)</p></div>
         <button className="btn-primary" onClick={()=>setShowCreate(true)}><Icon name="plus" size={16}/>Novo Vendedor</button>
       </div>
 
-      {/* Aviso sobre Edge Function */}
-      <div style={{background:"rgba(245,184,0,.06)",border:"1px solid rgba(245,184,0,.2)",borderRadius:10,padding:"12px 16px",marginBottom:20,fontSize:13,color:"var(--gray-light)",lineHeight:1.7}}>
-        <strong style={{color:"var(--yellow)"}}>ℹ️ Pré-requisito:</strong> a Edge Function <code style={{background:"var(--gray-mid)",padding:"1px 6px",borderRadius:4,fontSize:12}}>create-vendedor</code> precisa estar deployada no Supabase para criar novos vendedores.
-        {" "}<a href="https://supabase.com/docs/guides/functions" target="_blank" rel="noreferrer" style={{color:"var(--yellow)"}}>Ver docs →</a>
-      </div>
-
-      {/* Lista de vendedores */}
       {loading ? <Loading text="Carregando vendedores..."/> : vendedores.length===0 ? (
         <div className="card" style={{textAlign:"center",padding:48,color:"var(--gray-light)"}}>
           <div style={{fontSize:44,marginBottom:12}}>🤝</div>
           <div style={{fontSize:16,fontWeight:600,marginBottom:6}}>Nenhum vendedor ainda</div>
-          <div style={{fontSize:13,marginBottom:20}}>Crie o primeiro vendedor para começar a organizar a carteira de clientes.</div>
-          <button className="btn-primary" onClick={()=>setShowCreate(true)}><Icon name="plus" size={16}/>Criar Primeiro Vendedor</button>
+          <button className="btn-primary" style={{marginTop:8}} onClick={()=>setShowCreate(true)}><Icon name="plus" size={16}/>Criar Primeiro Vendedor</button>
         </div>
       ) : (
         <div className="card" style={{padding:0,overflow:"hidden"}}>
@@ -1403,24 +1448,16 @@ const VendedoresPage = () => {
           {vendedores.map(v=>(
             <div key={v.id} className="table-row" style={{gridTemplateColumns:"2fr 1fr 1fr 80px"}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:36,height:36,borderRadius:"50%",background:"var(--orange)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"white",fontSize:14,flexShrink:0}}>
-                  {displayInitial(v)}
-                </div>
-                <div>
-                  <div style={{fontWeight:500}}>{v.name||"—"}</div>
-                  <div style={{fontSize:12,color:"var(--gray-light)"}}>{v.email||"—"}</div>
-                </div>
+                <div style={{width:36,height:36,borderRadius:"50%",background:"var(--orange)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"white",fontSize:14,flexShrink:0}}>{displayInitial(v)}</div>
+                <div><div style={{fontWeight:500}}>{v.name||"—"}</div><div style={{fontSize:12,color:"var(--gray-light)"}}>{v.email||"—"}</div></div>
               </div>
               <div style={{fontSize:13,color:"var(--gray-light)"}}>{v.phone||"—"}</div>
               <div style={{fontSize:13,color:"var(--gray-light)"}}>{new Date(v.created_at).toLocaleDateString("pt-BR")}</div>
               <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
-                <button
-                  title="Remover vendedor"
-                  onClick={()=>setDeleteVendedor(v)}
-                  style={{background:"var(--gray-mid)",border:"1px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"6px 9px",fontSize:15,transition:"all .2s",lineHeight:1}}
+                <button title="Remover" onClick={()=>setDeleteVendedor(v)}
+                  style={{background:"var(--gray-mid)",border:"1px solid var(--gray)",borderRadius:6,color:"var(--gray-light)",cursor:"pointer",padding:"6px 9px",fontSize:15,lineHeight:1}}
                   onMouseEnter={e=>e.currentTarget.style.color="#ef5350"}
-                  onMouseLeave={e=>e.currentTarget.style.color="var(--gray-light)"}
-                >🗑️</button>
+                  onMouseLeave={e=>e.currentTarget.style.color="var(--gray-light)"}>🗑️</button>
               </div>
             </div>
           ))}
@@ -1463,12 +1500,19 @@ export default function App() {
           if (!profile.email&&session.user.email) { await supabase.from("profiles").update({email:session.user.email}).eq("id",session.user.id); profile.email=session.user.email; }
           let company_name=null;
           if (profile.company_id) { try{ const {data:comp}=await supabase.from("companies").select("name").eq("id",profile.company_id).maybeSingle(); company_name=comp?.name||null; }catch(e){} }
-          return {...session.user,...profile,name:profile.name||session.user.email?.split("@")[0]||"Usuário",email:profile.email||session.user.email,company_id:profile.company_id||null,company_name};
+          return {
+            ...session.user,...profile,
+            name:profile.name||session.user.email?.split("@")[0]||"Usuário",
+            email:profile.email||session.user.email,
+            company_id:profile.company_id||null,
+            company_name,
+            vendedor_id:profile.vendedor_id||null, // Entrega B: inclui vendedor_id no user
+          };
         }
-        const np={id:session.user.id,name:session.user.email?.split("@")[0]||"Usuário",phone:"",role:"client",email:session.user.email||"",company_id:null};
+        const np={id:session.user.id,name:session.user.email?.split("@")[0]||"Usuário",phone:"",role:"client",email:session.user.email||"",company_id:null,vendedor_id:null};
         await supabase.from("profiles").upsert(np,{onConflict:"id"});
         return {...session.user,...np};
-      } catch(e){ return {...session.user,name:session.user.email?.split("@")[0]||"Usuário",role:"client"}; }
+      } catch(e){ return {...session.user,name:session.user.email?.split("@")[0]||"Usuário",role:"client",vendedor_id:null}; }
     };
     try {
       const projectRef=import.meta.env.VITE_SUPABASE_URL?.match(/\/\/([^.]+)\./)?.[1];
@@ -1481,11 +1525,11 @@ export default function App() {
         if (valid&&stored?.user) {
           supabase.from("profiles").select("*").eq("id",stored.user.id).maybeSingle()
             .then(({data:profile,error})=>{
-              if (profile&&!error) setUser({...stored.user,name:profile.name||stored.user.email?.split("@")[0]||"Usuário",phone:profile.phone||"",role:profile.role||"client",email:profile.email||stored.user.email||"",company_id:profile.company_id||null,company_name:null});
-              else setUser({...stored.user,name:stored.user.email?.split("@")[0]||"Usuário",role:"client",email:stored.user.email||""});
+              if (profile&&!error) setUser({...stored.user,name:profile.name||stored.user.email?.split("@")[0]||"Usuário",phone:profile.phone||"",role:profile.role||"client",email:profile.email||stored.user.email||"",company_id:profile.company_id||null,company_name:null,vendedor_id:profile.vendedor_id||null});
+              else setUser({...stored.user,name:stored.user.email?.split("@")[0]||"Usuário",role:"client",vendedor_id:null});
               setAuthLoading(false);
             })
-            .catch(()=>{ setUser({...stored.user,name:stored.user.email?.split("@")[0]||"Usuário",role:"client"}); setAuthLoading(false); });
+            .catch(()=>{ setUser({...stored.user,name:stored.user.email?.split("@")[0]||"Usuário",role:"client",vendedor_id:null}); setAuthLoading(false); });
           return;
         }
       }
@@ -1506,12 +1550,10 @@ export default function App() {
     try {
       let query=supabase.from("orders").select("*").order("created_at",{ascending:false});
       if (user.role==="admin") {
-        // admin vê tudo — sem filtro
+        // admin vê tudo
       } else if (user.role==="vendedor") {
-        // vendedor vê só os pedidos da própria carteira
         query=query.eq("vendedor_id",user.id);
       } else {
-        // client
         if(user.company_id) query=query.or(`client_id.eq.${user.id},company_id.eq.${user.company_id}`);
         else query=query.eq("client_id",user.id);
       }
@@ -1556,25 +1598,14 @@ export default function App() {
     if(setCurrentOrder) setCurrentOrder(prev=>({...prev,status:newStatus,sub_status:clearSub?null:prev.sub_status,step_history:newHistory}));
   };
 
-  // ── Entrega D: chamada pelo OrderDetail após limpeza bem-sucedida ─────────
-  const handleDeleteSuccess=useCallback(()=>{
-    loadOrders();
-    setActiveTab("orders");
-    setSelectedOrder(null);
-  },[loadOrders]);
+  const handleDeleteSuccess=useCallback(()=>{ loadOrders(); setActiveTab("orders"); setSelectedOrder(null); },[loadOrders]);
 
   if(authLoading) return <><FontLoader/><Loading text="Verificando sessão..."/></>;
   if(!user) return <><FontLoader/><LoginPage onLogin={handleLogin}/></>;
 
   const renderContent=()=>{
     if(activeTab==="order-detail"&&selectedOrder) return (
-      <OrderDetail
-        order={selectedOrder}
-        user={user}
-        onBack={()=>setActiveTab("orders")}
-        onUpdateStatus={handleUpdateStatus}
-        onDeleteSuccess={handleDeleteSuccess}
-      />
+      <OrderDetail order={selectedOrder} user={user} onBack={()=>setActiveTab("orders")} onUpdateStatus={handleUpdateStatus} onDeleteSuccess={handleDeleteSuccess}/>
     );
     if(ordersLoading && activeTab!=="new-order") return <Loading text="Carregando pedidos..."/>;
 
@@ -1585,7 +1616,8 @@ export default function App() {
       if(activeTab==="vendedores") return <VendedoresPage/>;
       if(activeTab==="companies") return <CompaniesPage/>;
     } else if(user.role==="vendedor"){
-      if(activeTab==="dashboard") return <AdminDashboard orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} setOrdersFilter={setOrdersFilter}/>;
+      if(activeTab==="dashboard") return <ClientDashboard user={user} orders={orders} setActiveTab={setActiveTab} setSelectedOrder={setSelectedOrder}/>;
+      if(activeTab==="new-order") return <NewOrder user={user} onSubmit={()=>{loadOrders();setActiveTab("orders");}}/>;
       if(activeTab==="orders") return <OrderList user={user} orders={orders} setSelectedOrder={setSelectedOrder} setActiveTab={setActiveTab} initialFilter="all"/>;
     } else {
       if(activeTab==="dashboard") return <ClientDashboard user={user} orders={orders} setActiveTab={setActiveTab} setSelectedOrder={setSelectedOrder}/>;
