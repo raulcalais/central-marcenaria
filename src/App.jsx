@@ -2,24 +2,76 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./supabase.js";
 
-// ─── LOGO SVG ─────────────────────────────────────────────────────────────────
-const LogoMark = ({ height = 36, collapsed = false }) => collapsed ? (
-  <svg height={height} width={height} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-    <rect x="0" y="0" width="40" height="40" fill="#1C1C1C" rx="6"/>
-    <rect x="4" y="4" width="4" height="32" fill="#F5B800" rx="2"/>
-    <text x="12" y="18" fontFamily="Barlow Condensed,sans-serif" fontWeight="900" fontSize="11" fill="#FFFFFF">CM</text>
-    <text x="12" y="30" fontFamily="Barlow Condensed,sans-serif" fontWeight="700" fontSize="9" fill="#F5B800">4.0</text>
-  </svg>
-) : (
-  <svg height={height} viewBox="0 0 210 40" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
-    <rect x="0" y="0" width="5" height="40" fill="#F5B800" rx="2"/>
-    <rect x="0" y="0" width="210" height="2" fill="#F5B800" rx="1"/>
-    <rect x="0" y="38" width="210" height="2" fill="#1A4D2E" rx="1"/>
-    <text x="11" y="15" fontFamily="Barlow Condensed,sans-serif" fontWeight="900" fontSize="13" fill="#FFFFFF" letterSpacing="1">CENTRAL</text>
-    <text x="11" y="29" fontFamily="Barlow Condensed,sans-serif" fontWeight="900" fontSize="13" fill="#F5B800" letterSpacing="0.5">MARCENARIA</text>
-    <text x="157" y="29" fontFamily="Barlow Condensed,sans-serif" fontWeight="700" fontSize="10" fill="#888888">4.0</text>
-  </svg>
-);
+// ─── ASSET URLS ───────────────────────────────────────────────────────────────
+// URLs vêm das variáveis de ambiente. Se a env estiver vazia, o componente cai
+// para um fallback embutido (SVG ou null). Isso permite trocar a logo/fundo
+// no Vercel sem alterar código.
+const LOGO_URL = import.meta.env.VITE_LOGO_URL || "";
+const LOGIN_BG_URL = import.meta.env.VITE_LOGIN_BG_URL || "";
+const BANCADA_ERP_LOGO_URL = import.meta.env.VITE_BANCADA_ERP_LOGO_URL || "";
+
+// ─── LOGO ─────────────────────────────────────────────────────────────────────
+// Prioriza a imagem hospedada (LOGO_URL). Se ela falhar ao carregar
+// (rede/URL inválida), faz fallback automático para o SVG embutido.
+// O SVG aqui já vem SEM as listras amarela e verde (versão minimalista).
+const LogoMark = ({ height = 36, collapsed = false }) => {
+  const [imgFailed,setImgFailed]=useState(false);
+  // Versão colapsada (sidebar fechado): caixa pequena com "CM 4.0"
+  if (collapsed) {
+    return (
+      <svg height={height} width={height} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="40" height="40" fill="#1C1C1C" stroke="#F5B800" strokeWidth="1.5" rx="6"/>
+        <text x="20" y="18" fontFamily="Barlow Condensed,sans-serif" fontWeight="900" fontSize="11" fill="#FFFFFF" textAnchor="middle">CM</text>
+        <text x="20" y="29" fontFamily="Barlow Condensed,sans-serif" fontWeight="700" fontSize="9" fill="#F5B800" textAnchor="middle">4.0</text>
+      </svg>
+    );
+  }
+  // Versão expandida: imagem externa (se existir e carregar) ou SVG limpo
+  if (LOGO_URL && !imgFailed) {
+    return (
+      <img
+        src={LOGO_URL}
+        alt="Central Marcenaria 4.0"
+        style={{height,width:"auto",display:"block",flexShrink:0}}
+        onError={()=>setImgFailed(true)}
+      />
+    );
+  }
+  // Fallback SVG sem as listras horizontais (amarela e verde)
+  return (
+    <svg height={height} viewBox="0 0 210 40" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
+      <text x="0" y="15" fontFamily="Barlow Condensed,sans-serif" fontWeight="900" fontSize="13" fill="#FFFFFF" letterSpacing="1">CENTRAL</text>
+      <text x="0" y="29" fontFamily="Barlow Condensed,sans-serif" fontWeight="900" fontSize="13" fill="#F5B800" letterSpacing="0.5">MARCENARIA</text>
+      <text x="146" y="29" fontFamily="Barlow Condensed,sans-serif" fontWeight="700" fontSize="10" fill="#888888">4.0</text>
+    </svg>
+  );
+};
+
+// ─── BANCADA ERP LOGO (rodapé) ────────────────────────────────────────────────
+// Aparece no rodapé do login com texto "Desenvolvido por". Imagem hospedada
+// com fallback para versão recriada em SVG.
+const BancadaErpLogo = ({ height = 22 }) => {
+  const [imgFailed,setImgFailed]=useState(false);
+  if (BANCADA_ERP_LOGO_URL && !imgFailed) {
+    return (
+      <img
+        src={BANCADA_ERP_LOGO_URL}
+        alt="bancada-erp"
+        style={{height,width:"auto",display:"block"}}
+        onError={()=>setImgFailed(true)}
+      />
+    );
+  }
+  // Fallback SVG: B chanfrado em laranja + texto "bancada-erp"
+  return (
+    <svg height={height} viewBox="0 0 140 28" xmlns="http://www.w3.org/2000/svg">
+      <path d="M 4 0 L 18 0 Q 26 0 26 9 Q 26 13 23 15 Q 26 17 26 19 L 26 25 Q 26 28 23 28 L 4 28 L 0 24 L 0 4 Z" fill="#E87722"/>
+      <text x="7" y="21" fontFamily="Barlow Condensed,sans-serif" fontWeight="900" fontSize="22" fill="#0F0F0F">B</text>
+      <text x="32" y="20" fontFamily="-apple-system,sans-serif" fontSize="14" fontWeight="500" fill="#FFFFFF" letterSpacing="0.3">bancada</text>
+      <text x="93" y="20" fontFamily="-apple-system,sans-serif" fontSize="14" fontWeight="700" fill="#E87722">-erp</text>
+    </svg>
+  );
+};
 
 // ─── GOOGLE FONTS ─────────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -444,32 +496,52 @@ const LoginPage = ({ onLogin }) => {
     setLoading(false);
   };
 
+  // Imagem de fundo: só renderiza se a env tiver a URL.
+  // Se vazia, fica o fundo escuro padrão.
+  const bgStyle = LOGIN_BG_URL ? {
+    minHeight:"100vh",
+    background:`linear-gradient(rgba(15,15,15,.85), rgba(15,15,15,.95)), url(${LOGIN_BG_URL}) center/cover no-repeat fixed`,
+    display:"flex",
+    flexDirection:"column",
+  } : {
+    minHeight:"100vh",
+    background:"var(--black)",
+    display:"flex",
+    flexDirection:"column",
+  };
+
   return (
-    <div style={{minHeight:"100vh",background:"var(--black)",display:"flex",flexDirection:"column"}}>
-      <div style={{padding:"16px 32px",display:"flex",alignItems:"center",gap:12,borderBottom:"1px solid var(--gray-mid)"}}>
+    <div style={bgStyle}>
+      <div style={{padding:"16px 32px",display:"flex",alignItems:"center",gap:12,borderBottom:"1px solid rgba(255,255,255,.08)",backdropFilter:"blur(8px)",background:"rgba(15,15,15,.6)"}}>
         <LogoMark height={40}/>
         <div style={{marginLeft:"auto",fontSize:13,color:"var(--gray-light)"}}>centralmarcenaria.com.br</div>
       </div>
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-        <div style={{display:"flex",gap:56,alignItems:"center",maxWidth:900,width:"100%"}}>
-          <div className="fade-in" style={{flex:1}}>
-            <div className="barlow" style={{fontSize:56,fontWeight:900,lineHeight:1,color:"var(--white)"}}>
-              CENTRAL<br/><span style={{color:"var(--yellow)"}}>MARCENARIA</span><br/>
-              <span style={{color:"var(--gray-light)",fontSize:42}}>4.0</span>
+        <div style={{display:"flex",gap:56,alignItems:"center",maxWidth:980,width:"100%",flexWrap:"wrap"}}>
+          <div className="fade-in" style={{flex:"1 1 380px",minWidth:300}}>
+            {/* Headline 1: três frases curtas, ritmo forte */}
+            <div className="barlow" style={{fontSize:48,fontWeight:900,lineHeight:1.05,color:"var(--white)"}}>
+              Você projeta.<br/>
+              <span style={{color:"var(--yellow)"}}>A gente corta.</span><br/>
+              Você só monta.
             </div>
-            <p style={{color:"var(--gray-light)",fontSize:15,marginTop:16,lineHeight:1.7,maxWidth:400}}>
-              Envie seus projetos de corte CNC e filetamento, acompanhe o status em tempo real e retire na Central.
+            <p style={{color:"var(--gray-light)",fontSize:15,marginTop:16,lineHeight:1.7,maxWidth:440}}>
+              Corte CNC e filetamento sob medida. Mande o projeto e acompanhe em tempo real até a retirada.
             </p>
             <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:24}}>
-              {[["🪚","Corte CNC / Nesting","Envie seu arquivo DXF ou CNC"],["📐","Filetamento Automático","Bordas ABS, PVC em MDF"],["📦","Pedido em Tempo Real","Notificação quando pronto"]].map(([ic,lb,ds])=>(
+              {[
+                ["🪚","Corte CNC / Nesting","Precisão e agilidade pra qualquer projeto"],
+                ["📐","Filetamento Automático","Bordas perfeitas com acabamento profissional"],
+                ["📦","Pedido em Tempo Real","Acompanhe o status e seja avisado quando estiver pronto"],
+              ].map(([ic,lb,ds])=>(
                 <div key={lb} style={{display:"flex",gap:12,alignItems:"center"}}>
-                  <div style={{width:36,height:36,borderRadius:8,background:"var(--gray-mid)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{ic}</div>
+                  <div style={{width:36,height:36,borderRadius:8,background:"rgba(245,184,0,.08)",border:"1px solid rgba(245,184,0,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{ic}</div>
                   <div><div style={{fontSize:14,fontWeight:600}}>{lb}</div><div style={{fontSize:12,color:"var(--gray-light)"}}>{ds}</div></div>
                 </div>
               ))}
             </div>
           </div>
-          <div className="fade-in card" style={{width:360,flexShrink:0}}>
+          <div className="fade-in card" style={{width:360,flexShrink:0,background:"rgba(28,28,28,.85)",backdropFilter:"blur(12px)",border:"1px solid rgba(255,255,255,.08)"}}>
             <div style={{display:"flex",gap:4,marginBottom:22,background:"var(--gray-mid)",borderRadius:8,padding:4}}>
               {["login","register"].map(t=>(
                 <button key={t} onClick={()=>{setTab(t);setError("");}} style={{flex:1,padding:"8px",borderRadius:6,border:"none",cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,background:tab===t?"var(--yellow)":"transparent",color:tab===t?"var(--black)":"var(--gray-light)",transition:"all .2s"}}>
@@ -497,9 +569,18 @@ const LoginPage = ({ onLogin }) => {
           </div>
         </div>
       </div>
-      <div style={{padding:"14px 32px",borderTop:"1px solid var(--gray-mid)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <span style={{fontSize:12,color:"var(--gray-light)"}}>Av. Acesita, nº 1.080, Olaria — Timóteo/MG</span>
+      {/* Rodapé: endereço à esquerda, marceneiroshop no meio, bancada-erp à direita */}
+      <div style={{padding:"14px 32px",borderTop:"1px solid rgba(255,255,255,.08)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,flexWrap:"wrap",background:"rgba(15,15,15,.6)",backdropFilter:"blur(8px)"}}>
+        <span style={{fontSize:12,color:"var(--gray-light)"}}>📍 Av. Acesita, nº 1.080, Olaria — Timóteo/MG</span>
         <span style={{fontSize:12,color:"var(--gray-light)"}}>🔗 marceneiroshop.com.br · @marceneiroshop</span>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:10,color:"var(--gray-light)",letterSpacing:1,textTransform:"uppercase"}}>Desenvolvido por</span>
+          <a href="https://bancada-erp.com.br" target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",opacity:.85,transition:"opacity .2s"}}
+            onMouseEnter={e=>e.currentTarget.style.opacity="1"}
+            onMouseLeave={e=>e.currentTarget.style.opacity=".85"}>
+            <BancadaErpLogo height={22}/>
+          </a>
+        </div>
       </div>
     </div>
   );
